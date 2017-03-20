@@ -35,6 +35,26 @@ def create_test_source(freq=10, sps=250):
             outlet.push_sample([new_val for i in range(8)])
     _thread = Thread(target=_target)
     _thread.start()
+    
+def create_noisy_test_source(freq=10, noise_freq=60, sps=250):
+    '''
+    create fake lsl stream of source data
+    '''
+    assert freq < (sps/2), "frequence must be less than nquist"
+    stream_name = "Test_Signal_"+str(freq)+"_Hz_"
+    stream_id = stream_name + time.strftime("_%d_%m_%Y_%H_%M_%S_")
+    info = StreamInfo(stream_name, 'EEG', 8, 250, 'float32', stream_id)
+    outlet = StreamOutlet(info)
+    delay = 1.0/sps
+    def _target():
+        idx = 0
+        while True:
+            time.sleep(delay)
+            idx += 1
+            new_val = np.sin(2*np.pi*freq*(idx*delay)) + np.sin(2*np.pi*noise_freq*(idx*delay))
+            outlet.push_sample([new_val for i in range(8)])
+    _thread = Thread(target=_target)
+    _thread.start()
             
 def select_stream():
     streams = resolve_stream('type', 'EEG')
