@@ -11,7 +11,8 @@ import numpy as np
 
 class block_spectrogram (Block):
     
-    def __init__(self, fs=250, nperseg=256, noverlap=0):    
+    def __init__(self, _pipe, fs=250, nperseg=256, noverlap=0):   
+        self.pipe = _pipe
         self.fs = fs
         self.noverlap = noverlap
         self.nperseg = nperseg
@@ -31,7 +32,7 @@ class block_spectrogram (Block):
     def spectrogram_ready(self):
         return self.captured_axes
     
-    def get_output_dim(self, buf_len):
+    def get_output_dim(self, buf_len, chan_sel):
         sample_buf = np.random.randn(buf_len)
         return len(self.run(sample_buf, test=True))
     

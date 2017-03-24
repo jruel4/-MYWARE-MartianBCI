@@ -36,6 +36,28 @@ def create_test_source(freq=10, sps=250):
     _thread = Thread(target=_target)
     _thread.start()
     
+def create_multi_ch_test_source(freqs=[i for i in range(2,10)], sps=250):
+    '''
+    create fake lsl stream of source data
+    '''
+    assert len(freqs) == 8, "freqs array must be length 8"
+    stream_name = "Test_Signal_"+str(freqs[0])+"_Multi_Hz_"
+    stream_id = stream_name + time.strftime("_%d_%m_%Y_%H_%M_%S_")
+    info = StreamInfo(stream_name, 'EEG', 8, 250, 'float32', stream_id)
+    outlet = StreamOutlet(info)
+    delay = 1.0/sps
+    def _target():
+        idx = 0
+        while True:
+            time.sleep(delay)
+            idx += 1
+            
+            new_vals = [np.sin(2*np.pi*freq*(idx*delay)) for freq in freqs]
+
+            outlet.push_sample(new_vals)
+    _thread = Thread(target=_target)
+    _thread.start()
+    
 def create_noisy_test_source(freq=10, noise_freq=60, sps=250):
     '''
     create fake lsl stream of source data

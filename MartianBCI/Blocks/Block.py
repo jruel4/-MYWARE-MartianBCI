@@ -9,6 +9,9 @@ class Block (object):
     '''
     Abstract class for Pipeline, indicates required methods
     '''
+    def __init__(self, _pipe):
+        raise NotImplementedError( "Blocks must implement init() method with positional pipe argument." )
+    
     def run(self):
         raise NotImplementedError( "Blocks must implement run() method." )
     

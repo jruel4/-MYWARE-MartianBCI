@@ -11,6 +11,7 @@ from threading import Thread, Event
 from queue import Queue
 import queue
 import time
+import numpy as np
 from collections import deque
 from pylsl import  StreamInlet, resolve_stream, StreamInfo, StreamOutlet
 from .Blocks.Block import Block
@@ -20,7 +21,7 @@ class Pipeline:
     High level pipeline class for Real-time EEG DSP
     '''
     
-    def __init__(self, buf_len_secs=20, chan_sel=0, sample_update_interval=4):
+    def __init__(self, buf_len_secs=20, chan_sel=[0], sample_update_interval=4):
         self.buf_len_secs = buf_len_secs
         self.sample_update_interval = sample_update_interval
         self.chan_sel = chan_sel
@@ -67,7 +68,7 @@ class Pipeline:
         
     def get_output_len(self):
         last_block = self._blocks[-1]
-        return last_block.get_output_dim(self.inbuf_len)
+        return last_block.get_output_dim(self.inbuf_len, self.chan_sel)
         
     def add_block(self, bFunction, *args, **kwargs):
         '''
@@ -76,7 +77,7 @@ class Pipeline:
         
         Example usage: pipeline.add_block(test_block, ['1','2'],{'kw1':'3','kw2':'4'})
         '''
-        block_instance = bFunction(*args, **kwargs)
+        block_instance = bFunction(self, *args, **kwargs)
         assert isinstance(block_instance, Block)
         self._blocks.append(block_instance)
         
@@ -108,7 +109,7 @@ class Pipeline:
         buffer = deque(maxlen=self.inbuf_len)
         while self.run_thread_event.is_set():
             try:
-                new_data = self._in_queue.get(block=True, timeout=0.004)
+                new_data = np.asarray(self._in_queue.get(block=True, timeout=0.004))
                 buffer.append(new_data[self.chan_sel])
                 new_count += 1
             except queue.Empty as e:

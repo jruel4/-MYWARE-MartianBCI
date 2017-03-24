@@ -16,20 +16,20 @@ else:
 
 class block_fir_filter (Block):
     
-    def __init__(self, fs=250, fir_coeffs=None): 
+    def __init__(self, _pipe, fs=250, fir_coeffs=None): 
+        self.pipe = _pipe
         self.fs = fs
         if fir_coeffs == None:
             fir_coeffs = self.init_default_filter()
         self.fir_coeffs = fir_coeffs
-        self.buf = deque([0 for i in range(len(fir_coeffs))], maxlen=len(fir_coeffs))
+        self.buf = deque([np.zeros((len(_pipe.chan_sel))) for i in range(len(fir_coeffs))], maxlen=len(fir_coeffs))
         
     def run(self, inbuf):
-        self.buf.append(inbuf[0])
-        return np.asarray([np.dot(self.fir_coeffs, self.buf)])
-
+        self.buf.append(inbuf.pop())
+        return np.dot(self.fir_coeffs, np.asarray(self.buf))
     
-    def get_output_dim(self, buf_len):
-        return 1
+    def get_output_dim(self, buf_len, chan_sel):
+        return buf_len * len(chan_sel)
 
     def init_default_filter(self):
         nyq = self.fs/2.0
@@ -38,7 +38,9 @@ class block_fir_filter (Block):
         fir_remez = signal.remez(257, bands, desired[::2], Hz=2 * nyq)
         return np.asarray(fir_remez)
 
-
+    def update_fir_coeffs(self, _fir_coeffs):
+        assert len(_fir_coeffs) == len(self.fir_coeffs), "new coefficients must be same length as current"
+        self.fir_coeffs = _fir_coeffs
 
 
 

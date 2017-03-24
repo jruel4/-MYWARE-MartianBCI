@@ -1,0 +1,50 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Mar 24 06:35:47 2017
+
+@author: marzipan
+"""
+
+if __name__ == "__main__":
+    from Block import Block
+else:
+    from .Block import Block
+import numpy as np
+from collections import deque
+
+class block_inc_spectrogram (Block):
+    
+    def __init__(self, _pipe, fs=250, nperseg=256, num_ch=8):   
+        self.pipe = _pipe
+        self.fs = fs
+        self.nperseg = nperseg
+        self.buf = deque([np.zeros((num_ch)) for i in range(nperseg)], maxlen=nperseg)
+        
+    def run(self, _buf, test=False):
+        '''
+        Parameters to vary:
+            window
+            segment length
+            overlap
+            detrend(I think default yes)
+            
+            buf pass in should be deque of 4 lists, with each list num_chan long
+            
+        '''
+        self.buf.extend(_buf)
+        Sxx = np.abs(np.fft.fft(np.asarray(self.buf),axis=0))[:129]    # eliminate hard coded val for: (math.ceil(self.nperseg/2))
+        return Sxx.ravel()
+    
+    def get_axes(self):
+        return self.f
+    
+    def spectrogram_ready(self):
+        return self.captured_axes
+    
+    def get_output_dim(self, buf_len, chan_sel):
+        return 129*8 #TODO make this dynamic
+    
+    
+    
+    
+    
