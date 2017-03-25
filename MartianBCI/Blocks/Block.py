@@ -17,3 +17,7 @@ class Block (object):
     
     def get_output_dim(self):
         raise NotImplementedError( "Blocks must implement get_output_dim() method." )
+        
+        
+        
+        

@@ -11,14 +11,19 @@ else:
     from .Block import Block
 import numpy as np
 from collections import deque
+from scipy.signal import hanning
 
 class block_inc_spectrogram (Block):
     
-    def __init__(self, _pipe, fs=250, nperseg=256, num_ch=8):   
+    def __init__(self, _pipe, fs=250, nperseg=256, num_ch=8, window='hanning'):   
         self.pipe = _pipe
         self.fs = fs
         self.nperseg = nperseg
         self.buf = deque([np.zeros((num_ch)) for i in range(nperseg)], maxlen=nperseg)
+        if window == 'hanning':
+            self.window = hanning(nperseg)
+        else:
+            self.window = None
         
     def run(self, _buf, test=False):
         '''
@@ -32,7 +37,10 @@ class block_inc_spectrogram (Block):
             
         '''
         self.buf.extend(_buf)
-        Sxx = np.abs(np.fft.fft(np.asarray(self.buf),axis=0))[:129]    # eliminate hard coded val for: (math.ceil(self.nperseg/2))
+        lbuf = np.asarray(self.buf) # creates MxN matrix with M==len(self.buf), N==num_ch
+        if self.window != None:
+            lbuf = (lbuf.T * self.window).T
+        Sxx = np.abs(np.fft.fft(lbuf,axis=0))[:129]    # eliminate hard coded val for: (math.ceil(self.nperseg/2))
         return Sxx.ravel()
     
     def get_axes(self):
