@@ -52,7 +52,7 @@ class Pipeline:
     def select_output(self):
         stream_name = input("Enter desired outlet name: ")
         stream_id = stream_name + time.strftime("_%d_%m_%Y_%H_%M_%S_")
-        info = StreamInfo(stream_name, 'EEG', self.get_output_len(), 60, 'float32', stream_id) 
+        info = StreamInfo(stream_name, 'EEG', self.get_output_len(), 250, 'float32', stream_id) #TODO make this dynamic!
         outlet = StreamOutlet(info)
         self.set_output(outlet)
         

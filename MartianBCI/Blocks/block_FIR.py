@@ -39,7 +39,11 @@ class block_fir_filter (Block):
         return np.asarray(fir_remez)
 
     def update_fir_coeffs(self, _fir_coeffs):
-        assert len(_fir_coeffs) == len(self.fir_coeffs), "new coefficients must be same length as current"
+        if type(_fir_coeffs) == str:
+            fil = np.load('../MartianBCI/Blocks/Filter_Coefficients/FIR/'+_fir_coeffs)
+            _fir_coeffs = fil['ba'][0][:257]
+        else:
+            assert len(_fir_coeffs) == len(self.fir_coeffs), "new coefficients must be same length as current"
         self.fir_coeffs = _fir_coeffs
 
 
