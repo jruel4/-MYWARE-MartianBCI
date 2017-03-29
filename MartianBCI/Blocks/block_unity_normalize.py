@@ -15,7 +15,7 @@ class block_unity_normalize (Block):
     '''
     Abstract class for Pipeline, indicates required methods
     '''
-    def __init__(self, _pipe, _min_x=0.0, _max_x=100.0, _min_y=0.0, _max_y=1.0):
+    def __init__(self, _pipe, _min_x=0.0, _max_x=250.0, _min_y=0.0, _max_y=1.0):
         self.min_x = _min_x
         self.max_x = _max_x
         self.min_y = _min_y

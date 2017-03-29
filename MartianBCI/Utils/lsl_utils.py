@@ -117,7 +117,7 @@ def create_fake_eeg(sps=250):
             time.sleep(delay)
             idx += 1
             line_noise = 10.0*np.sin(2*np.pi*60*(idx*delay))
-            white_noise = 0.4*np.random.rand()
+            white_noise = 0.7*np.random.rand()
             new_vals = [white_noise + line_noise + 1.2*np.sin(2*np.pi*freq*(idx*delay)) for freq in freqs]
 
             outlet.push_sample(new_vals)
