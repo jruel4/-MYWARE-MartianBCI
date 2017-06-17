@@ -11,7 +11,7 @@ from MartianBCI.Blocks.block_FIR import block_fir_filter
 from MartianBCI.Utils.lsl_utils import create_noisy_test_source
 
 # Create test data
-create_noisy_test_source()
+#create_noisy_test_source()
 
 # Init and run pipeline
 pipeline = Pipeline(buf_len_secs=0.004, chan_sel=list(range(8)), sample_update_interval=1)
