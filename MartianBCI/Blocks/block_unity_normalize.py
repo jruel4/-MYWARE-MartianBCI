@@ -32,6 +32,7 @@ class block_unity_normalize (Block):
         detected by feedback. Therefore the key is to 'zoom' dynamically into 
         a given (linear) scale.
         '''
+        self.slope = (self.max_y-self.min_y)/(self.max_x-self.min_x)
         output = np.zeros_like(buf)
         for i in range(len(buf)):
             if buf[i] >= self.max_x:
