@@ -126,7 +126,7 @@ def generate_frequency_bins(L,Fs,bmax, bmin, bsteps):
     bins = np.append( bins, (L/2) ) #other half of fft 
     return bins
 
-def map_reward(state,action,electrode_weights=[],num_elec=2,Fs=250,window_len=500,window_overlap=25):
+def map_reward(state,electrode_weights=[],num_elec=2,Fs=250,window_len=500,window_overlap=25):
     #generate the bins (number of points per bin)
     bins = generate_frequency_bins(window_len,250,13,8,10)
     
@@ -144,7 +144,29 @@ def map_reward(state,action,electrode_weights=[],num_elec=2,Fs=250,window_len=50
     else:
         e_w = tf.constant(electrode_weights)
         return tf.multiply(tf.reduce_sum(spectro_binned[1:-2]), electrode_weights)
+
+
+## BINARY
+def map_features_bin(state,action,num_elec=2,Fs=250,window_len=500,window_overlap=25):
+    #generate the bins (number of points per bin)
+    bins = generate_frequency_bins(window_len,250,fbin_max,fbin_min,fbin_steps)
     
+    #here we generate a segment mapping for the tensor
+    segmap = generate_segment_map(bins,1)
+
+    #here, we generate ffts for each window, take the absolute value, and store them as a #total_windows x #samples/window
+    spectro=tf.fft(tf.slice(state,[0,0],[num_elec, window_len]))
+        
+    #reduce the tensor using binning
+    spectro_binned = tf.segment_sum(tf.transpose(spectro),segmap)
+
+    # TODO - MAKE BINARY TENSOR
+    features = tf.abs(spectro_binned[i+1])
+    
+    return features
+
+
+#####DEPRECATED    
 def map_features(state,action,actual_reward,num_elec=2,Fs=250,window_len=500,window_overlap=25):
     #generate the bins (number of points per bin)
     bins = generate_frequency_bins(window_len,250,fbin_max,fbin_min,fbin_steps)
@@ -231,37 +253,43 @@ def main():
     def live_input_fn():
         return map_features(raw_data_old,action_taken,actual_reward)
     
-    #Generate actual reward
-    actual_reward = generate_reward(raw_data_new)
+    while True:
+        raw_data_old = raw_data_new
+        raw_data_new = pull_raw_data_test()
+        action_old = action_new
+        
+        old_features_bin = map_features_bin(raw_data_old,action_taken)
+        
+        #Generate actual reward
+        actual_reward = map_reward(raw_data_new)
     
-    #STEP 2: Update eligibility traces
-    z = tf.add(z,current_features,"Update ETrace Cum") #Cumulative trace
-    #z = tf.minimum(z,tf.ones(feature_space_size)) #uncomment to make replacing trace
+        #STEP 2: Update eligibility traces
+        z_trace = tf.add(z_trace,old_features_bin,"Update ETrace Cum") #Cumulative trace
+        #z = tf.minimum(z,tf.ones(feature_space_size)) #uncomment to make replacing trace
     
-    #STEP 3: Find the error between expected and actual
-    #Generate expected reward from old data's features
-    expected_reward = tf.reduce_sum(tf.multiply(weights,current_features)) #b/c features old is binary this results in a summation of all weights for any features present
+        #STEP 3: Find the error between expected and actual
+        #Generate expected reward from old data's features
+        expected_reward = tf.reduce_sum(tf.multiply(weights,old_features_bin)) #b/c features old is binary this results in a summation of all weights for any features present
     
-    #calculate error between expected and actual
-    err_delta = actual_reward - expected_reward
+        #calculate error between expected and actual
+        err_delta = actual_reward - expected_reward
     
-    #STEP 5: Determine if we're greedy or not
-    #STEP 5-1: Determine best greedy action by sweeping over action space
-    #STEP 5-2: Explore
-    random = tf.Variable(tf.random_uniform([1]), name="random_prob")
-    next_action = tf.cond(tf.greater_equal(random_prob, epsilon), greedy_action, exploratory_action)
+        #STEP 5: Determine if we're greedy or not
+        #STEP 5-1: Determine best greedy action by sweeping over action space
+        #STEP 5-2: Explore
+        #random = tf.Variable(tf.random_uniform([1]), name="random_prob")
+        #next_action = tf.cond(tf.greater_equal(random_prob, epsilon), greedy_action, exploratory_action)
     
-    #STEP 6: Generate new S/A features and expected reward, update w,z,del
-    next_features = map_features(raw_data_new,next_action)
-    next_expected_reward = tf.reduce_sum(tf.multiply(weights,next_features))
+        #TEST
+        action_new = pull_action_test()
     
-    err_delta = err_delta + gamma * next_expected_reward
-    weights = weights + alpha * err_delta * z_trace
-    z_trace = z_trace * gamma * lam
+        #STEP 6: Generate new S/A features and expected reward, update w,z,del
+        new_features_bin = map_features_bin(raw_data_new,action_new)
+        new_expected_reward = tf.reduce_sum(tf.multiply(weights,new_features_bin))
     
-    #take actions
-    updateAudioOut()
-    delay()
+        err_delta = err_delta + gamma * new_expected_reward
+        weights = weights + alpha * err_delta * z_trace
+        z_trace = z_trace * gamma * lam
 
 
     sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
