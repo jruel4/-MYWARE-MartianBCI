@@ -11,7 +11,7 @@ from MartianBCI.Blocks.block_freq_bin import block_freq_bin
 from MartianBCI.Utils.lsl_utils import create_multi_ch_test_source
 
 # Create test data
-create_multi_ch_test_source(freqs=[7,8,10,25,30,11,40,45])
+#create_multi_ch_test_source(freqs=[9,8,10,12,30,29,40,45])
 
 # Init and run pipeline
 pipeline = Pipeline(buf_len_secs=0.016, chan_sel=list(range(8)), sample_update_interval=4)

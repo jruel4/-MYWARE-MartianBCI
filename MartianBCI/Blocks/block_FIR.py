@@ -21,6 +21,7 @@ class block_fir_filter (Block):
         self.fs = fs
         if fir_coeffs == None:
             fir_coeffs = self.init_default_filter()
+            self.update_fir_coeffs('Alpha_Bandpass.npz')
         self.fir_coeffs = fir_coeffs
         self.buf = deque([np.zeros((len(_pipe.chan_sel))) for i in range(len(fir_coeffs))], maxlen=len(fir_coeffs))
         
