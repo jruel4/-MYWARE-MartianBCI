@@ -46,7 +46,8 @@ import time
 import numpy as np
 from matplotlib import pyplot as plt
 
-
+#Clear graph, for tensorboard (and hygiene)
+#tf.reset_default_graph()
 
 
 ##GLOBAL SETTINGS
@@ -77,10 +78,10 @@ fbin_steps = 100
 #fbin_stepsize = 0.25
 fbins = np.concatenate(([0.0], np.linspace(fbin_min,fbin_max,fbin_steps), [Fs/2.0]))
 
-_epsilon=0.001
-_alpha=1
-_gamma=1
-_lambda=1
+_epsilon=0.1
+_alpha=0.1
+_gamma=0.1
+_lambda=0.9
 
 
 
@@ -99,21 +100,31 @@ feat_space_size = state_space_size + act_space_size
 
 Sin_1_2_4=[np.sin((x/250)*2*np.pi)*4 + np.sin((x/125)*2*np.pi)*2 + np.sin((x/62.5)*2*np.pi)*1 for x in range(0,10000)]
 Sin_8_12_16=[np.sin((x/25)*2*np.pi)*4 + np.sin((x/20.833)*2*np.pi)*2 + np.sin((x/12.5)*2*np.pi)*1 for x in range(0,10000)]
+Sin_5=[np.sin((x/50)*2*np.pi)*1 for x in range(0,10000)]
+Sin_10=[np.sin((x/25)*2*np.pi)*1 for x in range(0,10000)]
 Sin8CH=np.concatenate((([Sin_1_2_4] * 4),([Sin_8_12_16]* 4)),axis=0)
+SINNR=[Sin_5]*8
+SINR=[Sin_10]*8
 _tSin8CH=tf.constant(Sin8CH,dtype=tf.complex64)
 
 # in: x, length 3 tensor of amp x bbf x cf
 def act_to_actbin_idx(x):
-    print("x2: ",x)
-    return (x[0]) + (x[1]*amp_steps) + (x[2]*amp_steps*bbf_steps)
+    #    print("x2: ",x)
+    a=(x[0])
+    b=(x[1]*amp_steps)
+    c=(x[2]*amp_steps*bbf_steps)
+    print(amp_steps)
+    print(bbf_steps)
+    print(a,b,c)
+    return [x[0],x[1],x[2]],(a+b+c)
+#    return tf.constant(6000)
 
 # in: x, length 3 tensor of amp x bbf x cf
 def act_to_actbin(x):
-    print("x1: ",x)
-    idx=act_to_actbin_idx(x)
-    #FIX
-    y = tf.SparseTensor([[6000]],[True],[act_space_size])
-    print('Y', y)
+#    print("x1: ",x)
+    p,idx=act_to_actbin_idx(x)
+    y = tf.SparseTensor([[idx]],[True],[act_space_size])
+#    print('Y', y)
     return tf.sparse_tensor_to_dense(y,default_value=False)
 
 def actbin_idx_to_act(idx):
@@ -134,8 +145,9 @@ def greedy_action(input_data_new,w):
     act=tf.slice(w,[state_space_size],[-1])
     act=tf.arg_max(act,0)
 #    print("GREEDY ARGMAX: ", act)
-#    print(actbin_idx_to_act(act))
-    return act
+    print(actbin_idx_to_act(act))
+#    return tf.cast(tf.constant([4,5,6]),dtype=tf.int64)
+    return actbin_idx_to_act(act)
 #    
 #    next_features=map_features(input_data_new,next_action)
 #    next_features_tmp=next_features
@@ -148,10 +160,11 @@ def greedy_action(input_data_new,w):
 #    return next_action
 
 def exploratory_action(data,p_action):
-    arand= tf.random_uniform([1],minval=0,maxval=np.int64(amp_max), dtype=tf.int64)
-    brand= tf.random_uniform([1],minval=0,maxval=np.int64(bbf_max), dtype=tf.int64)
-    crand= tf.random_uniform([1],minval=0,maxval=np.int64(cf_max), dtype=tf.int64)
+    arand= tf.random_uniform([1],minval=0,maxval=np.int64(amp_steps), dtype=tf.int64)
+    brand= tf.random_uniform([1],minval=0,maxval=np.int64(bbf_steps), dtype=tf.int64)
+    crand= tf.random_uniform([1],minval=0,maxval=np.int64(cf_steps), dtype=tf.int64)
     return tf.concat([arand, brand, crand], 0)
+#    return tf.cast(tf.constant([1,2,3]),dtype=tf.int64)
 
 def generate_segment_map(bins,num_elec):
     x=list()
@@ -179,9 +192,11 @@ def generate_frequency_bins(L,Fs,bmin,bmax,bsteps):
     return bins
 
 
+next_action = None
 def map_next_action(data,p_action,w,e):
-    random = tf.Variable(tf.random_uniform([1]), name="random_prob")
-    next_action = tf.cond(random[0] < e,
+    global next_action
+    random = tf.random_uniform([1])
+    next_action = tf.cond(random[0] > e,
                           lambda: greedy_action(data,w),
                           lambda: exploratory_action(data,p_action),
                           name='greedy_or_random_condition')
@@ -214,7 +229,7 @@ def map_reward(state,electrode_weights=[],num_elec=2,Fs=250,L=1000,window_overla
 
     # TODO - MAKE BINARY TENSOR
     
-    reward = tf.reduce_sum(tf.reshape(tf.abs(spectro_binned),[-1]),name="mrwd_alphapow_summing")
+    reward = tf.div(tf.reduce_sum(tf.reshape(tf.abs(spectro_binned),[-1]),name="mrwd_alphapow_summing"), 10)
     return reward
     #TODO
 #    if electrode_weights == [] or len(electrode_weights) != num_elec:
@@ -353,7 +368,7 @@ def load_individual_baseline_test():
     return
 
 ## CODE ##
-def tf_init_graph(tf_session):
+def tf_init_graph(tf_session,global_init):
     #get user baseline power
     #individual_baselines = load_individual_baseline()
     
@@ -371,20 +386,9 @@ def tf_init_graph(tf_session):
     lam = tf.constant(_lambda, dtype=tf.float32,name='c_lambda')
     
     #TF VARIABLES
-    weights = tf.Variable(tf.zeros(feat_space_size),dtype=tf.float32,name="v_weights")
-    z_trace = tf.Variable(tf.zeros(feat_space_size),dtype=tf.float32,name="v_z_trace")
-    bin_features_old = tf.Variable(tf.zeros(feat_space_size),dtype=tf.float32,name="v_features_old")
-    bin_features_new = tf.Variable(tf.zeros(feat_space_size),dtype=tf.float32,name="v_features_new")
-    
-    err_delta = tf.Variable([],name="v_err_delta")
-    expected_reward = tf.Variable([],name="v_expected_reward")
-    actual_reward = tf.Variable([],name="v_actual_reward")
-    
-    #TODO This should be inialized to valid data (ideally)
-    action_old = tf.Variable(tf.ones([3]),name="v_action_old_indices")
-    action_next = tf.Variable(tf.ones([3]),name="v_action_next_indices")
-    
-    #TODO - dimensions MxN or NxM?
+    weights = tf.get_variable(name="v_weights",shape=[feat_space_size],dtype=tf.float32)
+    z_trace = tf.get_variable(name="v_z_trace",shape=[feat_space_size],dtype=tf.float32)
+    expected_reward = tf.get_variable(name="v_expected_reward",shape=[],dtype=tf.float32)
 
     ##TF PLACEHOLDERS (INPUTS)
     raw_data_new = tf.placeholder(tf.complex64,name='p_raw_data_new')
@@ -409,12 +413,12 @@ def tf_init_graph(tf_session):
 #==============================================================================
     
     #STEP 1: Update eligibility traces
-    z_trace = tf.add(z_trace,bin_features_old,name="update_z_trace_accumulate") #Cumulative trace
-    z_trace = tf.minimum(z_trace,tf.ones(z_trace.get_shape()),name="update_z_trace_replace") #uncomment to make replacing trace
+
 
     #STEP 2: Find the error between expected and actual
     #Generate expected reward from old data's features
-    expected_reward = tf.reduce_sum(tf.multiply(weights,bin_features_old), name="calc_expected_reward") #b/c features old is binary this results in a summation of all weights for any features present
+    #b/c features old is binary this results in a summation of all weights for any features present
+    
 
     #STEP 3: Calculate actual reward
     actual_reward = map_reward(raw_data_new)
@@ -425,34 +429,40 @@ def tf_init_graph(tf_session):
     #STEP 4: Determine if we're greedy or not
     #STEP 4-1: Determine best greedy action by sweeping over action space
     #STEP 4-2: Explore
-
-    action_old = action_next
-    action_next = map_next_action(raw_data_new,action_old,weights,epsilon)
     
+    action_next = map_next_action(raw_data_new,0,weights,epsilon)
 
     #STEP 5: Generate new S/A features
-    bin_features_old = bin_features_new
-    bin_features_new = map_features_binary(raw_data_new,action_next,individual_baselines)
+    bin_features = tf.cast(map_features_binary(raw_data_new,action_next,individual_baselines),dtype=tf.float32)
     
     #STEP 6: Generate new expected reward (used to update w,z,del)
-    new_expected_reward = tf.reduce_sum(tf.multiply(weights,tf.cast(bin_features_new,dtype=tf.float32)))
+    expected_reward.assign(tf.reduce_sum(tf.multiply(weights,bin_features)))
 
     #STEP 7: Update our model
-    err_delta = err_delta + gamma * new_expected_reward
-    weights = weights + alpha * err_delta * z_trace
-    z_trace = z_trace * gamma * lam
+    err_delta = err_delta + gamma * expected_reward
+    weights.assign(weights + alpha * err_delta * z_trace)
+    z_trace.assign(z_trace * gamma * lam)
     
+    z_trace.assign(tf.add(z_trace,bin_features,name="update_z_trace_accumulate")) #Cumulative trace
+    z_trace.assign(tf.minimum(z_trace,tf.ones(z_trace.get_shape()),name="update_z_trace_replace")) #uncomment to make replacing trace
+
+    if global_init:
+        init = tf.global_variables_initializer()
+        print("Global variables init", tf_session.run(init))
     
-    init = tf.global_variables_initializer()
-    print("Global variables init", tf_session.run(init))
-    return raw_data_new,action_next
+    return raw_data_new,[action_next,weights,z_trace,actual_reward,expected_reward]
     
-def main(tf_sess,state):    
-    tf_in,tf_out=tf_init_graph(tf_sess)
+def main(tf_sess,state,global_init=True):    
+    tf_in,tf_out=tf_init_graph(tf_sess,global_init)
     next_a = list()
 #    while True:
-    for i in range(10):
-        print(i)
+    for i in range(1000):
+        
+        Sin_5=[np.sin((x/50)*2*np.pi)*1 for x in range(0,10000)]
+        Sin_10=[np.sin((x/25*i/25.0)*2*np.pi)*1 for x in range(0,10000)]
+        Sin8CH=np.concatenate((([Sin_1_2_4] * 4),([Sin_8_12_16]* 4)),axis=0)
+        SINNR=[Sin_10]*8
+#        print(i)
 #        state = env_interact()
         #TEST
 #        action_new = pull_action_test()
@@ -461,20 +471,18 @@ def main(tf_sess,state):
         # Pull new data from a stream
 #        raw_data_new = pull_raw_data_test()
         try:
-            next_a.append(sess.run([tf_out], feed_dict={tf_in:state}))
+            next_a.append(sess.run(tf_out, feed_dict={tf_in:SINNR}))
             #TODO evaluate action not weights
         except KeyboardInterrupt:
             return
     return next_a
 
+
 sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+b=main(sess,SINR,global_init=True)
 if True: writer = tf.summary.FileWriter(".\\Logs\\",sess.graph)
-b=main(sess,Sin8CH)
+#sess.close()
 
-
-
-
-
-
-
-
+if False:
+    b=np.asarray(b)
+    plt.plot(b[:,3])
