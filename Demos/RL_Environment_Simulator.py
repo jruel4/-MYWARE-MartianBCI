@@ -39,7 +39,7 @@ class RLEnv:
         inv_reward_magnitude = diff if (diff < self.MAX_FREQUENCY_DIFF_HZ) else self.MAX_FREQUENCY_DIFF_HZ
         reward_magnitude = self.MAX_FREQUENCY_DIFF_HZ - inv_reward_magnitude
         new_state = reward_magnitude * self.BASE_STATE
-        return new_state
+        return [new_state]*8
     
     def mode_3(self, action):
         '''

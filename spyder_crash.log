@@ -1,0 +1,26 @@
+Traceback (most recent call last):
+  File "C:\Miniconda2\envs\tensorflow\lib\site-packages\spyder\app\mainwindow.py", line 2999, in main
+    mainwindow = run_spyder(app, options, args)
+  File "C:\Miniconda2\envs\tensorflow\lib\site-packages\spyder\app\mainwindow.py", line 2911, in run_spyder
+    main.post_visible_setup()
+  File "C:\Miniconda2\envs\tensorflow\lib\site-packages\spyder\app\mainwindow.py", line 1224, in post_visible_setup
+    self.projects.reopen_last_project()
+  File "C:\Miniconda2\envs\tensorflow\lib\site-packages\spyder\plugins\projects.py", line 306, in reopen_last_project
+    save_previous_files=False)
+  File "C:\Miniconda2\envs\tensorflow\lib\site-packages\spyder\plugins\projects.py", line 259, in open_project
+    self.current_active_project = EmptyProject(path)
+  File "C:\Miniconda2\envs\tensorflow\lib\site-packages\spyder\widgets\projects\type\__init__.py", line 63, in __init__
+    self.create_project_config_files()
+  File "C:\Miniconda2\envs\tensorflow\lib\site-packages\spyder\widgets\projects\type\__init__.py", line 94, in create_project_config_files
+    version=version)
+  File "C:\Miniconda2\envs\tensorflow\lib\site-packages\spyder\widgets\projects\config.py", line 97, in __init__
+    raw_mode=True, remove_obsolete=True)
+  File "C:\Miniconda2\envs\tensorflow\lib\site-packages\spyder\config\user.py", line 202, in __init__
+    self.load_from_ini()
+  File "C:\Miniconda2\envs\tensorflow\lib\site-packages\spyder\config\user.py", line 252, in load_from_ini
+    self.read(self.filename(), encoding='utf-8')
+  File "C:\Miniconda2\envs\tensorflow\lib\configparser.py", line 696, in read
+    self._read(fp, filename)
+  File "C:\Miniconda2\envs\tensorflow\lib\configparser.py", line 1063, in _read
+    lineno)
+configparser.DuplicateSectionError: While reading from 'C:/Users/marzipan/workspace/MartianBCI\\.spyproject\\workspace.ini' [line 17]: section 'main' already exists
