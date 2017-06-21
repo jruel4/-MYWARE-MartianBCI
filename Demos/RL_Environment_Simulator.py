@@ -10,7 +10,7 @@ import numpy as np
 class RLEnv:
     
     def __init__(self):
-        self.TARGET_FREQUENCY_HZ = 10 
+        self.TARGET_FREQUENCY_HZ = 11
         self.MAX_FREQUENCY_DIFF_HZ = 10
         self.SRATE = 250
         self.WIN_LEN = 1000

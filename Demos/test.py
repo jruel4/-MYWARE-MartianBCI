@@ -7,33 +7,40 @@ Created on Sun Jun 18 18:34:54 2017
 import tensorflow as tf
 import numpy as np
 
-act_space_size=6400
 
-def act_to_actbin_idx(x):
-#    print("x2: ",x)
-    return (x[0]) + (x[1]*10) + (x[2]*10*32)
+def load_test_data(fname='data001.xdf'):
+    loaded_data=load_xdf(fname)
+    time_series = loaded_data[0][0]['time_series']
+    time_series=np.transpose(time_series)
+    return time_seriess
 
-def act_to_actbin(x):
-#    print("x1: ",x)
-    idx=act_to_actbin_idx(x)
-    #FIX
-    y = tf.SparseTensor([[tf.cast(idx,dtype=tf.int64)]],[True],[act_space_size])
-#    print('Y', y)
-    return tf.sparse_tensor_to_dense(y,default_value=False)
+tf.reset_default_graph()
 
 
-action_old = tf.Variable(tf.ones([3]),name="v_next_indices")
-action_next = tf.Variable(tf.ones([3]),name="v_action_next_indices")
+def extract_frequency_bins(raw_input,f_start,f_end,num_bins,Fs=250):
+    L=1000
+    with tf.name_scope("extract_fbins"):
+        tf.assert_rank(raw_input,2,message="Error extracting frequency bins, input tensor must be rank 2, #elec x #samples.")
 
-action_old=action_next
-a=act_to_actbin(action_old)
-
-sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-
-init = tf.global_variables_initializer()
-print("Global variables init", sess.run(init))
+        t_start=np.int64((L/Fs)*f_start)
+        t_end=np.int64((L/Fs)*f_end)
+        print(t_start)
+        print(t_end)
+        assert np.mod((t_end-t_start),num_bins) == 0#, "Error, cannot evenly break up frequency bins: " + (t_end-t_start) + " total bin points but " + num_bins + " requested bins."
 
 
-b=sess.run(a)
-if True: writer = tf.summary.FileWriter(".\\Logs\\",sess.graph)
-sess.close()
+with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+    #test code start
+    a=tf.constant([[0],[0]])
+    b=a.get_shape()[1]
+
+    extract_frequency_bins(a,1,2,1000)
+    
+    init = tf.global_variables_initializer()
+    print("Global variables init", sess.run(init))
+
+    z=sess.run(a)
+
+
+#if True: writer = tf.summary.FileWriter(".\\Logs\\",sess.graph)
+#sess.close()
