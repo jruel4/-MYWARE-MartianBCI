@@ -178,21 +178,23 @@ def build_graph_binary_feature_extract():
     global z
     with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
     
-        bfe = BinaryFeatureExtractor()
-        bfe.initBinaryFeatureList(21, 3)
+        bfe = BinaryFeatureExtractor([21, 1])
+        #bfe.initBinaryFeatureList(21, 3)
         bfe.activateBinaryFeaturesBrute(10)
         g = bfe.A
         print(g)
-        weights=tf.constant([[1 for i in range(42)]])
+        
+        weights=tf.constant([[1 for i in range(21)]])
         b=bfe.getBinaryFeatureFullMatrix_TF()        
         b=tf.cast(b,tf.int32)
         c = tf.matmul(weights,b,False,True)
+        d = bfe.activateBinaryFeatures_TF(tf.constant(11, dtype=tf.int64))
 
         
         init=tf.global_variables_initializer()
         sess.run(init)
         writer = tf.summary.FileWriter(".\\Logs\\",sess.graph)    
-        z=sess.run([b,c])
+        z=sess.run([b,c,d])
         sess.close()
     
 #build_graph_binary_feature_extract() 

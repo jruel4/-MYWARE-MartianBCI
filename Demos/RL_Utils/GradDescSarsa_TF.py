@@ -21,7 +21,7 @@ from Demos import RL_Environment_Simulator as RLEnv
 
 class GradDescSarsaAgent:
     
-    def __init__(self,_EPSILON=0.1,_ALPHA=0.99,_GAMMA=0,_LAMBDA=0,_ALPHA_DECAY=1):
+    def __init__(self,_EPSILON=0.75,_ALPHA=0.9,_GAMMA=0,_LAMBDA=0,_ALPHA_DECAY=.999):
 
         
         self._EPSILON=_EPSILON
@@ -61,9 +61,9 @@ class GradDescSarsaAgent:
         #amp_stepsize=0.1
         self.mAMP = np.linspace(amp_min,amp_max,amp_steps)
         
-        bbf_min=0
-        bbf_max=22.0
-        bbf_steps=22
+        bbf_min=1
+        bbf_max=50
+        bbf_steps=50
         #bbf_stepsize=0.5
         self.mBBF = np.linspace(bbf_min, bbf_max, bbf_steps)
         
@@ -129,7 +129,8 @@ class GradDescSarsaAgent:
         self.mALPHA = tf.get_variable(name="alpha", shape=[],dtype=tf.float32,initializer=tf.constant_initializer( self._ALPHA))
                 
         #STEP 1: Calculate actual reward
-        actual_reward = self.mRewardExtract.map_reward(raw_data_new)
+        #TODO actual_reward = self.mRewardExtract.map_reward(raw_data_new)
+        actual_reward = self.mRewardExtract.map_reward_trivial(raw_data_new)
     
         #STEP 2: Find the error between expected and actual
         err_delta_1 = tf.subtract(actual_reward, expected_reward, name="o_calc_err_delta")
@@ -162,11 +163,12 @@ class GradDescSarsaAgent:
 
         
         #UPDATES
-        with tf.name_scope("Updates"):
-            weights_update = weights.assign(weights_tmp)
-            z_trace_update =  z_trace.assign(z_trace_tmp)
-            alpha_update = self.mALPHA.assign(alpha_tmp)
-            expected_reward_update = expected_reward.assign(expected_reward_tmp)
+        with tf.control_dependencies([err_delta_1]):
+            with tf.name_scope("Updates"):
+                weights_update = weights.assign(weights_tmp)
+                z_trace_update =  z_trace.assign(z_trace_tmp)
+                alpha_update = self.mALPHA.assign(alpha_tmp)
+                expected_reward_update = expected_reward.assign(expected_reward_tmp)
         
         tf.summary.histogram("Weights",weights)
         tf.summary.histogram("EligibilityTrace",z_trace)
@@ -218,7 +220,7 @@ tf.reset_default_graph()
 Sin10=[np.sin(2*np.pi * (x/250) * 10) for x in range(1000)]
 state=[Sin10]
 
-BBF = np.linspace(0, 22, 22)
+BBF = np.linspace(0, 50, 200)
 
 GD=GradDescSarsaAgent()
 RLE = RLEnv.RLEnv()
@@ -227,14 +229,16 @@ y=list()
 z=list()
 action=[0,0]
 state=None
-for i in range(10):
+for i in range(10000):
     try:
         state = RLE.interact(action)
-        if i % 500 == 0:
+        #print(action[0], state[0][0])
+        if i % 999 == 0:
             [a,b] = GD.interact(state,i,metadata=True)
         else:
             [a,b] = GD.interact(state,i)    
-        action = [BBF[a[0]],BBF[a[0]]]
+        #action = [BBF[a[0]],BBF[a[0]]]
+        action = [a[0],a[0]]
         y.append(a)
         z.append(b)
 #        z = b

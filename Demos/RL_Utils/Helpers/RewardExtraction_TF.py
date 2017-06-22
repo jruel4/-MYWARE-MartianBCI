@@ -31,7 +31,9 @@ class RewardExtraction:
             #        e_w = tf.constant(electrode_weights)
             #        return tf.multiply(tf.reduce_sum(spectro_binned[1:-2]), electrode_weights)
 
-
+    def map_reward_trivial(self, state):
+        return tf.cast(tf.abs(state[0,0]),dtype=tf.float32)
+        #return tf.constant(666, dtype=tf.float32)
 
 def build_graph_reward_extraction():
 #    tf.reset_default_graph()

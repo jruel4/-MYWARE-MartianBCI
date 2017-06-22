@@ -66,7 +66,7 @@ def build_graph_action_selection():
     
     bbf_min=1.0
     bbf_max=19.0
-    bbf_steps=20
+    bbf_steps=100
     #bbf_stepsize=0.5
     bbf = np.linspace(bbf_min, bbf_max, bbf_steps)
     
