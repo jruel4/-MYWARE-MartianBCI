@@ -25,7 +25,7 @@ class RLEnv:
         input: new action [float(amp), float(freq)] that agent submits to environment.
         output: new state that environment generates in response to latest action.
         '''
-        return self.mode_4_trivial_delay_1(action)
+        return self.mode_4_trivial(action)
 
     def mode_1(self, action):
         '''
