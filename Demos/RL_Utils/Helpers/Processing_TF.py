@@ -2,7 +2,25 @@
 
 import tensorflow as tf
 import numpy as np
-        
+   
+'''
+Inputs:
+    raw_input: a 2D tensor to be FFT'd
+    nchan: number of input channels
+    siglen: length of input signal
+    
+Outputs:
+    fft_data: fft data
+
+'''
+
+def fft_cpu(raw_input,nchan,siglen):
+        fft_matrix=np.asarray([[np.e**(-2j*np.pi*freq*(x/siglen)) for x in range(siglen)] for freq in range(siglen)])
+        fft_matrix_tf = tf.constant(fft_matrix)
+
+        fft_data = tf.matmul(tf.cast(raw_input, tf.complex128),fft_matrix_tf)
+        return fft_data
+     
 '''
 Inputs:
     raw_input: #elec x #samples tensor of raw data

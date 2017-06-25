@@ -2,8 +2,6 @@
 
 import numpy as np
 from matplotlib import pyplot as plt
-
-
 from Demos.RL_Utils.Helpers.xdf import load_xdf
 
 
@@ -77,7 +75,7 @@ def get_raw_data(file='C:\Conda\MartianBCI\Demos\RL_Utils\Helpers\Recordings\JCR
         elif 'Markers' in d['info']['type'][0]:
             markers.append(d)
 
-    full_time_series = np.concatenate((streams[0]['time_series'][0:len(streams[1]['time_series'])], streams[1]['time_series']),axis=1)
+    full_time_series = np.concatenate((streams[1]['time_series'],streams[0]['time_series'][0:len(streams[1]['time_series'])]),axis=1)
     chan_locs = ['F7','Fz','F8','C3','C4','Pz','O1','O2','Fp1','Fp2','F3','F4','Cz','P3','P4']
 
     full_time_series = full_time_series[37500:93000,:]
