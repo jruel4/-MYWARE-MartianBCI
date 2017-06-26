@@ -15,12 +15,62 @@ Outputs:
 '''
 
 def fft_cpu(raw_input,nchan,siglen):
-        fft_matrix=np.asarray([[np.e**(-2j*np.pi*freq*(x/siglen)) for x in range(siglen)] for freq in range(siglen)])
-        fft_matrix_tf = tf.constant(fft_matrix)
+    fft_matrix=np.asarray([[np.e**(-2j*np.pi*freq*(x/siglen)) for x in range(siglen)] for freq in range(siglen)])
+    fft_matrix_tf = tf.constant(fft_matrix)
 
-        fft_data = tf.matmul(tf.cast(raw_input, tf.complex128),fft_matrix_tf)
-        return fft_data
-     
+    fft_data = tf.matmul(tf.cast(raw_input, tf.complex128),fft_matrix_tf)
+    return fft_data
+   
+    
+
+'''
+Inputs:
+    x: 1D tensor to shift by "shift"
+    shift: 0D tensor, amount (+/-) to shift x by
+Ouputs:
+    y: shifted tensor
+Req:
+    shift must be <= len(x)
+'''
+def shift_1d(x, shift):
+    with tf.name_scope("Shift1D"):
+        tf.assert_rank(x,1)
+        tf.assert_rank(shift,0)
+        asserts=[
+                tf.assert_less_equal(shift,tf.shape(x)[0],message="JCR: shift must be <= len(x)")
+                ]
+        
+        with tf.control_dependencies(asserts):
+            y=tf.concat([x[(-1*shift):],x[:(-1*shift)]],0)
+            return y    
+    
+    
+
+'''
+Inputs:
+    x: 2D tensor to shift by "shift"
+    shift: 0D tensor, amount (+/-) to shift x by
+    axis: axis which to perform shift operation on
+Ouputs:
+    y: shifted tensor
+Req:
+    shift must be <= len(x)
+'''
+def shift_2d(x, shift, axis):
+    with tf.name_scope("Shift2D"):
+        tf.assert_rank(x,2)
+        tf.assert_rank(shift,0)
+        asserts=[
+                tf.assert_less_equal(shift,tf.shape(x)[axis],message="JCR: shift must be <= len(x)")
+                ]
+        with tf.control_dependencies(asserts):
+            if axis == 0:
+                y=tf.concat([x[(-1*shift):,:],x[:(-1*shift),:]],0)
+            elif axis == 1:
+                y=tf.concat([x[:,(-1*shift):],x[:,:(-1*shift)]],1)
+            return y
+
+    
 '''
 Inputs:
     raw_input: #elec x #samples tensor of raw data
@@ -54,8 +104,6 @@ def extract_frequency_bins(raw_input,f_start,f_end,num_bins,Fs=250,L=1000):
 
 
 '''
-conv_multiple
-
 Input:
     data - data to operate on; rank 2 #chan x #samples tensor
     kernel - rank 1 tensor; convolved over #samples for each chan
@@ -65,9 +113,8 @@ Input:
 Out:
     convolved - rank 2 #chan x #samples tensor
     
-Function:
+NOTE:
     Convolves kernel with each input channel - useful for applying a single filter to multiple channels
-
 '''
 def multi_ch_conv(data,kernel,bidir=True):
     #Verify input tensor ranks
