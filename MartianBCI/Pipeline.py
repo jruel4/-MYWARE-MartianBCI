@@ -13,8 +13,17 @@ import queue
 import time
 import numpy as np
 from collections import deque
-from pylsl import  StreamInlet, resolve_stream, StreamInfo, StreamOutlet
-from .Blocks.Block import Block
+from pylsl import  StreamInlet, resolve_stream
+
+
+if __name__ == "__main__":
+    from Blocks.Block import Block
+    from Blocks.Block_LSL import Block_LSL
+else:
+    from .Blocks.Block import Block
+    from .Blocks.Block_LSL import Block_LSL
+
+class NoInputBlock(Exception): pass
 
 class Pipeline:
     '''
@@ -25,10 +34,47 @@ class Pipeline:
         self.buf_len_secs = buf_len_secs
         self.sample_update_interval = sample_update_interval
         self.chan_sel = chan_sel
-        self._blocks = list() # Signal processing blocks are primary data transformation operations
+        self._blocks = dict() # Signal processing blocks are primary data transformation operations
         self._in_queue = Queue() # Local fifo queue, usage: .put(), .get()
         self.run_thread_event = Event()
         self.run_thread_event.clear()
+    
+    def add_block(self, bFunction, parentUID, *args, **kwargs):
+        '''
+        Add signal processing block with required initialization args.
+        Ensuring type correctness of init args should be handled in bFunction.
+
+        returns block UID
+        
+        Example usage: pipeline.add_block(test_block, ['1','2'],{'kw1':'3','kw2':'4'})
+        '''
+
+        #Verify that parentUID is either present or we're using raw data
+        if parentUID != "RAW" and parentUID not in self._blocks.keys():
+             raise KeyError("parentUID does not exist in block list" + parentUID)
+        
+        #Verify that bFunction is valid
+        if issubclass(bFunction, Block_LSL):
+            block_function = bFunction(self, parentUID, *args, **kwargs)
+        elif issubclass(bFunction, Block):
+            block_function = bFunction(self, *args, **kwargs)
+        else:
+            raise TypeError("Input bFunction object does not inherit from Block class")
+            
+        #Generate UID, verify that it doesn't already exist
+        block_uid = np.random.randint(128000,256000)
+        while block_uid in self._blocks.keys(): block_uid = np.random.randint(128000,256000)
+        
+        #Generate structure, prepend to blocklist
+        new_block = {
+                block_uid:{
+                        'func':block_function,
+                        'parent':parentUID,
+                        }
+                }
+        self._blocks.update(new_block)
+
+        return block_uid
         
     def select_source(self):
         streams = resolve_stream('type', 'EEG')
@@ -49,46 +95,16 @@ class Pipeline:
         else:
             raise TypeError("Requires type: "+ str(pylsl.StreamInlet) + ". Received type: "+ str(type(inlet)))
             
-    def select_output(self):
-        stream_name = input("Enter desired outlet name: ")
-        stream_id = stream_name + time.strftime("_%d_%m_%Y_%H_%M_%S_")
-        info = StreamInfo(stream_name, 'EEG', self.get_output_len(), 250, 'float32', stream_id) #TODO make this dynamic!
-        outlet = StreamOutlet(info)
-        self.set_output(outlet)
-        
-    def set_output(self, outlet):
+    def execute_block(self, block_uid, _buf):
         '''
-        define outlet of type pylsl.StreamOutlet
-        usage: outlet.push_sample([0 for i in range(8)])
+        This method recurses through available blocks
         '''
-        if isinstance(outlet, pylsl.StreamOutlet):
-            self._outlet = outlet
-        else:
-            raise TypeError("Requires type: "+ str(pylsl.StreamOutlet) + ". Received type: "+ str(type(outlet)))
-        
-    def get_output_len(self):
-        last_block = self._blocks[-1]
-        return last_block.get_output_dim(self.inbuf_len, self.chan_sel)
-        
-    def add_block(self, bFunction, *args, **kwargs):
-        '''
-        Add signal processing block with required initialization args.
-        Ensuring type correctness of init args should be handled in bFunction.
-        
-        Example usage: pipeline.add_block(test_block, ['1','2'],{'kw1':'3','kw2':'4'})
-        '''
-        block_instance = bFunction(self, *args, **kwargs)
-        assert isinstance(block_instance, Block)
-        self._blocks.append(block_instance)
-        
-    def execute_blocks(self, buf):
-        ''' 
-        This method actuall passes data through chained block methods
-        '''
-        for block in self._blocks:
-            buf = block.run(buf)
-        return buf
-        
+        buf = self._blocks[block_uid]['func'].run(_buf)
+        for next_block_uid, next_block_attrib in self._blocks.items():
+            if next_block_attrib['parent'] == block_uid:
+                self.execute_block(next_block_uid, buf)
+        return
+            
     def acquisition_thread(self):
         '''
         Acquires samples from source and move them to local queue at fixed rate.
@@ -105,6 +121,16 @@ class Pipeline:
         '''
         Executes signal processing pipeline
         '''
+        
+        starting_block_uids = list()
+        for block_uid,v in self._blocks.items():
+            if v['parent'] == "RAW":
+                starting_block_uids.append(block_uid)
+
+        #Verify that we have at least one starting block
+        if not starting_block_uids:
+            raise NoInputBlock("No input block selected")
+        
         new_count = 0
         buffer = deque(maxlen=self.inbuf_len)
         while self.run_thread_event.is_set():
@@ -120,14 +146,9 @@ class Pipeline:
                 '''
                 This is where actual thread execution occurs
                 '''
-                output = self.execute_blocks(buffer)
-                # Output to lsl
-                try:
-                    self._outlet.push_sample(output)
-                except ValueError as e:
-                    print(e)
-                    print("Received data.shape: "+str(output.shape))
-        
+                for start_uid in starting_block_uids:
+                    self.execute_block(start_uid, buffer)
+
     def run(self):
         '''
         Launch thread which executes signal processing pipeline until termination
@@ -149,13 +170,3 @@ class Pipeline:
             print("There is no active run thread to stop")
         else: 
             self.run_thread_event.clear()
-        
-        
-    
-    
-    
-    
-    
-    
-    
-    
