@@ -8,7 +8,7 @@ Created on Mon Mar 20 02:24:01 2017
 import matplotlib.pyplot as plt
 from time import sleep
 from threading import Thread
-from ..Utils.lsl_utils import select_stream
+from MartianBCI.Utils.lsl_utils import select_stream
 import numpy as np
 import time
 

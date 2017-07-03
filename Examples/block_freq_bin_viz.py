@@ -17,7 +17,7 @@ from MartianBCI.Utils.lsl_utils import create_multi_ch_test_source
 pipeline = Pipeline(buf_len_secs=0.016, chan_sel=list(range(8)), sample_update_interval=4)
 pipeline.select_source()
 pipeline.add_block(block_inc_spectrogram, nperseg=256, num_ch=8, window='hanning')
-pipeline.add_block(block_freq_bin) 
+pipeline.add_block(block_freq_bin)
 pipeline.select_output()
 pipeline.run()
 
