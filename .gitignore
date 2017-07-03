@@ -1,11 +1,5 @@
 *.pyc
-MartianBCI/__pycache__/__init__.cpython-35.pyc
 *.MARZIPAN-PC
-*.pyc
 .spyproject/workspace.ini
 *.PC
-Demos/__pycache__/RL_Environment_Simulator.cpython-35.pyc
-.spyproject/workspace.ini
-*.pyc
-MartianBCI/Utils/__pycache__/lsl_utils.cpython-35.pyc
-Demos/__pycache__/RL_Environment_Simulator.cpython-35.pyc
+*.gitignore~
