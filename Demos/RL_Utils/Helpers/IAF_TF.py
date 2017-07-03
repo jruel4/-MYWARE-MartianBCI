@@ -12,9 +12,9 @@ fir_coeffs = '7-14_BP_FIR_BLACKMANN.npy'
 b,a = np.load('C:\\Users\\marzipan\\workspace\\MartianBCI\\Demos\\RL_Utils\\Filters\\' + fir_coeffs)
 
 #rdd=get_raw_data()[0]
-rdd=get_raw_data('C:\\Users\\marzipan\\workspace\\MartianBCI\\Demos\\RL_Utils\\Helpers\\Recordings\\JCR_IAF_06-22-17.xdf')[0]
-#rd=rdd[2500:5000]
-rd=rdd
+#rdd=get_raw_data('C:\\Users\\marzipan\\workspace\\MartianBCI\\Demos\\RL_Utils\\Helpers\\Recordings\\JCR_IAF_06-22-17.xdf')[0]
+rd=rdd[2500:5000]
+#rd=rdd
 
 
 
@@ -22,50 +22,15 @@ rd=rdd
 def SinHz(hz,Fs=250,L=1000):
     return [np.sin(2*np.pi* x * hz / Fs) for x in range(L)]
 
-
-#def detect_iaf(raw_input,)
-
-if False:
-    with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
-        
-        raw_data_tensor = tf.constant( np.asarray(np.transpose(rd)), dtype=tf.float32)
-        b_coeffs = tf.constant( b, dtype=tf.float32)
-
-        data_bp_filt_tmp=Utils.multi_ch_conv(raw_data_tensor,b_coeffs)
-        data_bp_filt=tf.slice(data_bp_filt_tmp, [0,300], [-1,tf.shape(data_bp_filt_tmp)[1]-600])
-
-        pphz = tf.realdiv( tf.cast(tf.shape(data_bp_filt)[1], tf.float32) , tf.constant(250.0))
-
-        #This value (in Hz) is used to determine the peak frequency - larger window uses more surrounding values to calculate IAF
-        IAF_Peak_Window_Size = tf.constant(0.25 / 2.0)
-        IAF_Window = tf.ones([tf.cast(tf.multiply(IAF_Peak_Window_Size,pphz),tf.int32)])
-
-        data_fft = tf.fft(tf.cast(data_bp_filt,tf.complex64))
-#        data_fft = fft_cpu([data_bp_filt[1]],1,2500)
-        
-        windowd = Utils.multi_ch_conv(tf.cast(tf.abs(data_fft),tf.float32),IAF_Window)
-        
-        init = tf.global_variables_initializer()
-        print("Global variables init, ret: ", sess.run(init))
-        writer = tf.summary.FileWriter(".\\Logs\\",sess.graph)
-        e=sess.run([data_bp_filt,data_bp_filt_tmp,data_fft,windowd])
-
-
-
-
-
-
-
-
 '''
 Input:
     raw_input: #chan x #samples tensor
     w_len: length of window
     w_overlap: overlap between windows
-
+    OPTIONAL, cust_window: supply a 1D array to use a custom window (w_len is ignored, extracted from window) 
 
 '''
-def specgram_tf_2d(raw_input, w_len, w_overlap, window=[]):
+def specgram_tf_2d(raw_input, w_len, w_overlap, cust_window=[]):
 
     #Get input signal length
     s_len = tf.shape(raw_input)[1]
@@ -80,8 +45,9 @@ def specgram_tf_2d(raw_input, w_len, w_overlap, window=[]):
     w_var = tf.tile(window_tf,[n_chan,1])
     #w_var = window_tf
 
-    specgram_len = tf.floordiv((s_len - w_len), w_shift)
-
+    #Add 1 to the length because the initial, unshifted window is not included in the floordiv
+    specgram_len = tf.floordiv((s_len - w_len), w_shift) + 1
+    print("Spectrogram length: ", (specgram_len).eval())
 
 
     #Zero-mean the data    
@@ -98,24 +64,28 @@ def specgram_tf_2d(raw_input, w_len, w_overlap, window=[]):
         w_tmp = Utils.shift_2d(w_var, tf.cast(w_shift * l_idx,tf.int32),1)
         s_tmp = tf.multiply(s_var, w_tmp)
         fft_tmp = tf.fft(tf.cast(s_tmp,tf.complex64))
-        fft_padded = tf.pad(tf.expand_dims(fft_tmp,0),[[l_idx, tf.shape(specgram)[0] - l_idx - 1],[0,0],[0,0]])
+        
+        #Subtract one from the padding because fft takes up one row
+        fft_padded = tf.pad(tf.expand_dims(fft_tmp,0),[[l_idx, (specgram_len-1) - l_idx],[0,0],[0,0]])
         
         #Update loop variables
-        l_idx = l_idx + 1
+
         specgram=tf.add(specgram, fft_padded)
-    
+        with tf.control_dependencies([specgram]):
+            l_idx = l_idx + 1    
         return [l_idx,specgram]
     
     # total_len - window_len  > (overlap*(idx))
-    def cond(ll_idx,lcl_r_var):
-        return tf.greater( s_len - w_len, tf.cast(w_shift * ll_idx, tf.int32 ))
+    def cond(l_idx,specgram):
+        return tf.greater(specgram_len, tf.cast(l_idx, tf.int32 ))
         
-    wh = tf.while_loop(cond,bod,loopvars,parallel_iterations=100000)
-    return wh
+    return tf.while_loop(cond,bod,loopvars,parallel_iterations=1000)
 
 
 
 
+
+tf.reset_default_graph()
 
 ##SPECGRAM TST
 if True:
@@ -129,12 +99,19 @@ if True:
         
         raw_data_tensor=data_bp_filt
 
-        z=specgram_tf_2d(raw_data_tensor,500,450)
+        z=specgram_tf_2d(raw_data_tensor,500,480)
         init = tf.global_variables_initializer()
         print("Global variables init, ret: ", sess.run(init))
         writer = tf.summary.FileWriter(".\\Logs\\",sess.graph)
-        global p
-        p=sess.run([z])
+
+        global spectro
+        run_options = tf.RunOptions(trace_level=tf.RunOptions.SOFTWARE_TRACE)
+        run_metadata = tf.RunMetadata()
+        spectro=sess.run([z], options=run_options, run_metadata=run_metadata)
+        writer.add_run_metadata(run_metadata, 'S: %d' % 1)
+
+
+ 
 
 
 
@@ -225,11 +202,10 @@ if False:
         
         raw_data_tensor=data_bp_filt
 
-        z=specgram_tf_1d(raw_data_tensor,500,495)
+        z=specgram_tf_1d(raw_data_tensor,500,25)
         init = tf.global_variables_initializer()
         print("Global variables init, ret: ", sess.run(init))
         writer = tf.summary.FileWriter(".\\Logs\\",sess.graph)
-        global p
         p=sess.run([z])
         
 

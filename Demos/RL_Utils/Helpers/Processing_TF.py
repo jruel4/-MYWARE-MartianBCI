@@ -83,22 +83,66 @@ Inputs:
 Returns:
     out: #elec x num_bins tensor of average power across each frequency bin
 '''
-def extract_frequency_bins(raw_input,f_start,f_end,num_bins,Fs=250,L=1000):
+def extract_frequency_bins(raw_input, F_START, F_END, NUM_BINS, SIGLEN, FS):
     with tf.name_scope("utils.extract_fbins"):
         tf.assert_rank(raw_input,2,message="Error extracting frequency bins, input tensor must be rank 2, #elec x #samples.")
         # Get input length
-        L=raw_input.get_shape().as_list()[1]
-        t_start=np.int64((L/Fs)*f_start)
-        t_end=np.int64((L/Fs)*f_end)
-        assert np.mod((t_end-t_start),num_bins) == 0, "Error, cannot evenly break up frequency bins: "# + (t_end-t_start) + " total bin points but " + num_bins + " requested bins."
+        t_start=np.int64((SIGLEN/FS)*F_START)
+        t_end=np.int64((SIGLEN/FS)*F_END)
+        assert np.mod((t_end-t_start),NUM_BINS) == 0, "Error, cannot evenly break up frequency bins: "# + (t_end-t_start) + " total bin points but " + num_bins + " requested bins."
                             
-        raw_fft=tf.fft(raw_input)
+        raw_fft=tf.fft(tf.cast(raw_input, tf.complex64))
         sliced_raw_fft = tf.slice(raw_fft,[0,t_start],[-1,t_end-t_start])
-        sliced_raw_fft_t = tf.split(sliced_raw_fft,num_bins,axis=1)
+        sliced_raw_fft_t = tf.split(sliced_raw_fft,NUM_BINS,axis=1)
         sliced_raw_fft_t_abs = tf.abs(sliced_raw_fft_t)
         sliced_binned_fft = tf.reduce_sum(sliced_raw_fft_t_abs,axis=2)
         sliced_binned_fft_reduced = tf.transpose(sliced_binned_fft)
     return sliced_binned_fft_reduced
+
+
+
+
+'''
+Inputs:
+    raw_input: #elec x #samples tensor of raw data
+    f_start: start of the first frequency bin (hz)
+    f_end: end of the last frequency bin (hz)
+    num_bins: total number of bins
+    
+    (Optional) Fs: Frequency at which the data was sampled at; defaults to 250
+
+Returns:
+    out: #elec x num_bins tensor of average power across each frequency bin
+'''
+def extract_frequency_bins_TF(raw_input, _F_START, _F_END, _NUM_BINS, _FS):
+    with tf.name_scope("utils.extract_fbins"):
+        tf.assert_rank(raw_input,2,message="Error extracting frequency bins, input tensor must be rank 2, #elec x #samples.")
+        tf.assert_rank(_F_START, 0,message="_F_START must be scalar")
+        tf.assert_rank(_F_END, 0,message="_F_END must be scalar")
+
+        # Get input length
+        L=tf.cast(tf.shape(raw_input)[1], tf.float32)
+        NUM_BINS=int(_NUM_BINS.eval())
+
+        t_start=tf.cast(((L/_FS)*_F_START), tf.int32)
+        t_end=tf.cast(((L/_FS)*_F_END), tf.int32)
+
+        asserts = [
+                tf.assert_equal( tf.truncatemod((t_end-t_start), tf.cast(_NUM_BINS, tf.int32)), 0, message="Error, cannot evenly break up frequency bins")
+                ]
+        
+        with tf.control_dependencies(asserts):
+                                        
+            raw_fft=tf.fft(tf.cast(raw_input, tf.complex64))
+            print(tf.shape(raw_fft).eval())
+            sliced_raw_fft = tf.slice(raw_fft,[0,t_start],[-1,t_end-t_start])
+            print(tf.shape(sliced_raw_fft).eval())
+            sliced_raw_fft_t = tf.split(sliced_raw_fft,NUM_BINS,axis=1)
+            sliced_raw_fft_t_abs = tf.abs(sliced_raw_fft_t)
+            sliced_binned_fft = tf.reduce_sum(sliced_raw_fft_t_abs,axis=2)
+            sliced_binned_fft_reduced = tf.transpose(sliced_binned_fft)
+            return sliced_binned_fft_reduced
+
 
 
 
