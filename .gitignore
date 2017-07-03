@@ -2,3 +2,4 @@
 *.MARZIPAN-PC
 .spyproject/workspace.ini
 *.PC
+*.gitignore~
