@@ -9,20 +9,27 @@ import numpy as np
 from Demos.RL_Utils.Helpers import Processing_TF as Utils
 
 class tf_block_IAF (Block_TF):
-    def __init__(self, _NCHAN, _FS=250, _PEAK_WINDOW=0.5):
+    def __init__(self, _PIPE_TF, _NCHAN, _FS=250, _PEAK_WINDOW=0.5):
+        self.mPipeTF = _PIPE_TF
+        self.mNCHAN_NON_TENSORFLOW = _NCHAN
         self.mNCHAN = tf.constant(_NCHAN, shape=[],name='NCHAN')
         self.mFS = tf.constant(_FS,shape=[])
         self.mPEAK_WINDOW = tf.constant(_PEAK_WINDOW, shape=[])
+        self.mInKeys = None
 
     def run(self, _buf):
-        with tf.name_scope("RUN_IAFPower"):
-            tf.assert_rank(_buf['data'], 2, message="JCR: Input must be rank 2 tensor")
+        if self.mInKeys == None:
+            self.mInKeys = super().get_input_keys(self.mPipeTF)
+        with tf.name_scope("B_IAF"):
+            input_data = _buf['data'][self.mInKeys[0]]
+            tf.assert_rank(input_data, 2, message="JCR: Input must be rank 2 tensor")
             asserts= [
-                    tf.assert_equal(tf.shape(_buf['data'])[0], self.mNCHAN, message="JCR: Input Dim-0 must equal number of channels")
+                    tf.assert_equal(tf.shape(input_data)[0], self.mNCHAN,
+                                    message="Input Dim-0 must equal number of channels")
                     ]
             
             with tf.control_dependencies(asserts):
-                s_len = tf.shape(_buf['data'])[1]
+                s_len = tf.shape(input_data)[1]
                 
                 pphz = tf.realdiv(tf.cast(s_len, tf.float32) , tf.cast(self.mFS, tf.float32))
                 
@@ -30,12 +37,13 @@ class tf_block_IAF (Block_TF):
                 IAF_Peak_Window_Size = tf.realdiv(self.mPEAK_WINDOW, 2.0)
                 
                 asserts = [
-                        tf.assert_greater_equal(IAF_Peak_Window_Size, tf.realdiv(1.0, pphz), message="JCR: Invalid number of Hz/Window")
+                        tf.assert_greater_equal(IAF_Peak_Window_Size, tf.realdiv(1.0, pphz),
+                                                message="Invalid number of Hz/Window")
                         ]
                 with tf.control_dependencies(asserts):
                     IAF_Window = tf.ones([tf.cast(tf.multiply(IAF_Peak_Window_Size,pphz),tf.int32)])
             
-                    data_fft = tf.fft(tf.cast(_buf['data'],tf.complex64))
+                    data_fft = tf.fft(tf.cast(input_data,tf.complex64))
                     
                     #Convolve the window over the FFT to strengthen peak
                     data_fft_neighbor_avg = Utils.multi_ch_conv(tf.cast(tf.abs(data_fft),tf.float32),IAF_Window)
@@ -43,19 +51,27 @@ class tf_block_IAF (Block_TF):
                     dout1 = tf.argmax(data_fft_neighbor_avg[:, 0:half_size], axis=1)
                     dout = tf.realdiv( tf.cast(dout1, tf.float32), tf.realdiv(tf.cast(half_size,tf.float32), tf.realdiv(tf.cast(self.mFS,tf.float32), 2.0)))
         
+                    print(tf.shape(dout))
+                    print(self.mNCHAN)
                     asserts = [
-                            tf.assert_equal(tf.shape(dout)[0], self.mNCHAN, message="JCR: Input/output shape mismatch",name='FinalCheck')
+                            tf.assert_equal(tf.shape(dout)[0], self.mNCHAN,
+                                            message="Input/output shape mismatch",name='FinalCheck')
                             ]
                     with tf.control_dependencies(asserts):
+                        tf.summary.histogram("IAF", dout)
                         return {
-                                'data':dout,
+                                'data':{'iaf':dout},
                                 'summaries':_buf['summaries'],
                                 #pass dout shape to updates so that the assert gets evaluated
                                 'updates': _buf['updates'] + [tf.shape(dout)[0]]
                                 }
     
-    def get_output_dim(self):
-        return self.mNCHAN
+    def get_output_struct(self):
+        return {
+                'data':{'iaf':self.mNCHAN_NON_TENSORFLOW},
+                'summaries':0,
+                'updates':[1]
+                }
 
 
 '''

@@ -2,4 +2,7 @@
 *.MARZIPAN-PC
 .spyproject/workspace.ini
 *.PC
-*.gitignore~
+*.*~
+*.gz
+MartianBCI/Logs
+*.tsv

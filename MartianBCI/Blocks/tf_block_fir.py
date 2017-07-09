@@ -40,31 +40,44 @@ GET_OUTPUT_DIM:
 '''
 
 class tf_block_fir (Block_TF):
-    def __init__(self, _NCHAN, _COEFFS):
+    def __init__(self, _PIPE_TF, _NCHAN, _COEFFS):
+        self.mPipeTF = _PIPE_TF
+        self.mNCHAN_NON_TENSORFLOW = _NCHAN
         self.mNCHAN = tf.constant(_NCHAN,shape=[])
         self.mCOEFFS = tf.constant(_COEFFS)
-        tf.assert_rank(self.mCOEFFS, 1, message="JCR: Coeffs must be rank 1 tensor")
+        self.mInKeys = None
+
+        tf.assert_rank(self.mCOEFFS, 1,
+                       message="JCR: Coeffs must be rank 1 tensor",
+                       name='FIRCoeffInputCheck')
 
     def run(self, _buf):
-        with tf.name_scope("RUN_FIRFilt"):
-            tf.assert_rank(_buf['data'], 2, message="JCR: Input must be rank 2 tensor")
+        if self.mInKeys == None:
+            self.mInKeys = super().get_input_keys(self.mPipeTF)
+        with tf.name_scope("B_FIRFilt"):
+            input_data = _buf['data'][self.mInKeys[0]]
+            tf.assert_rank(input_data, 2, message="JCR: Input must be rank 2 tensor")
             asserts= [
-                    tf.assert_equal(tf.shape(_buf['data'])[0], self.mNCHAN, message="JCR: Input Dim-0 must equal number of channels")
+                    tf.assert_equal(tf.shape(input_data)[0], self.mNCHAN,
+                                    message="JCR: Input Dim-0 must equal number of channels")
                     ]
     
             with tf.control_dependencies(asserts):
-                dout = Utils.multi_ch_conv(_buf['data'], self.mCOEFFS)
+                dout = Utils.multi_ch_conv(input_data, self.mCOEFFS)
                 return {
-                        'data':dout,
+                        'data':{'fir_flt':dout},
                         'summaries':_buf['summaries'],
                         'updates':_buf['updates']
                         }
-        
-    def get_output_dim(self, _BUFLEN):
-        return [self.mNCHAN, _BUFLEN]
 
+    def get_output_struct(self):
+        return {
+                'data':{'fir_flt':[self.mNCHAN_NON_TENSORFLOW,-1]},
+                'summaries':0,
+                'updates':0
+                }
 
-
+'''
 #Useful for testing
 
 fir_coeffs = '7-14_BP_FIR_BLACKMANN.npy'
@@ -81,3 +94,4 @@ with tf.Session() as sess:
                 'summaries':[],
                 'updates':[]})
     q= sess.run(d)
+'''

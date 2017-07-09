@@ -21,3 +21,5 @@ class test_block (Block):
             return {'data':[x*self.idx for x in range(8)]}
         def get_output_struct(self):
             return {'data': 8}
+        def get_self(self):
+            return self

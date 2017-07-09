@@ -7,14 +7,16 @@ from matplotlib import pyplot as plt
 from Demos.RL_Utils.Helpers.LoadXDF import get_raw_data
 from Demos.RL_Utils.Helpers import Processing_TF as Utils
 
+tf.reset_default_graph()
+
 fir_coeffs = '7-14_BP_FIR_BLACKMANN.npy'
 #b,a = np.load('C:\\Conda\\MartianBCI\\Demos\\RL_Utils\\Filters\\' + fir_coeffs)
 b,a = np.load('C:\\Users\\marzipan\\workspace\\MartianBCI\\Demos\\RL_Utils\\Filters\\' + fir_coeffs)
 
 #rdd=get_raw_data()[0]
 rdd=get_raw_data('C:\\Users\\marzipan\\workspace\\MartianBCI\\Demos\\RL_Utils\\Helpers\\Recordings\\JCR_IAF_06-22-17.xdf')[0]
-#rd=rdd[2500:5000]
-rd=rdd
+rd=rdd[2500:5000]
+#rd=rdd
 
 
 
@@ -60,58 +62,64 @@ if False:
 '''
 Input:
     raw_input: #chan x #samples tensor
-    w_len: length of window
+    _WINDOW_LEN: length of window
     w_overlap: overlap between windows
 
 
 '''
-def specgram_tf_2d(raw_input, w_len, w_overlap, window=[]):
+def specgram_tf_2d(_RAW_IN, _NCHAN, _INPUT_LEN, _WINDOW_LEN, _WINDOW_OVERLAP, window=[]):
 
     #Get input signal length
-    s_len = tf.shape(raw_input)[1]
-    n_chan = tf.shape(raw_input)[0]
+    SIGLEN = _INPUT_LEN
+    NCHAN = _NCHAN
 
     #Determine how much we shift the window by
-    w_shift = w_len - w_overlap
+    WINDOW_STRIDE = _WINDOW_LEN - _WINDOW_OVERLAP
     
-    window = signal.tukey(w_len)
-    window_tf = tf.pad( tf.constant(window,dtype=tf.float32), [[0,(s_len - w_len)]], mode='CONSTANT')
-    window_tf = tf.expand_dims(window_tf,0)
-    w_var = tf.tile(window_tf,[n_chan,1])
-    #w_var = window_tf
+    WINDOW = signal.tukey(_WINDOW_LEN)
 
-    specgram_len = tf.floordiv((s_len - w_len), w_shift)
+    #Pad window to same length of input signal
+    window_tf = tf.pad( tf.constant(WINDOW,dtype=tf.float32), [[0,(SIGLEN - _WINDOW_LEN)]], mode='CONSTANT')
+
+    #Tile window, one tile for each input channel
+    window_tf = tf.expand_dims(window_tf,0)
+    w_var = tf.tile(window_tf,[NCHAN,1])
+
+    #Spectrogram length is the number of times we shift the window + 1 (for initial FFT)
+    specgram_len = tf.floordiv((SIGLEN - _WINDOW_LEN), WINDOW_STRIDE) + 1
+    print("SPECLEN: ",specgram_len.eval())
 
 
 
     #Zero-mean the data    
 #    mean = tf.reduce_mean(raw_input[0])
 #    s_var = tf.subtract(raw_input[0],mean)
-    s_var = raw_input
+    s_var = _RAW_IN
     
     #Initialize our loop variables
-    idx = tf.constant(0,tf.int32)    
-    specgram_init = tf.zeros(shape=[specgram_len, n_chan, s_len], dtype=tf.complex64 )
-    loopvars = [idx,specgram_init]
+    loop_idx = tf.constant(0,tf.int32)    
+    loop_specgram_init = tf.zeros(shape=[specgram_len, NCHAN, SIGLEN], dtype=tf.complex64 )
+    loopvars = [loop_idx,loop_specgram_init]
     
-    def bod(l_idx,specgram):
-        w_tmp = Utils.shift_2d(w_var, tf.cast(w_shift * l_idx,tf.int32),1)
-        s_tmp = tf.multiply(s_var, w_tmp)
-        fft_tmp = tf.fft(tf.cast(s_tmp,tf.complex64))
-        fft_padded = tf.pad(tf.expand_dims(fft_tmp,0),[[l_idx, tf.shape(specgram)[0] - l_idx - 1],[0,0],[0,0]])
+    def bod( _IDX, _SPECGRAM):
+        window_shifted = Utils.shift_2d(w_var, tf.cast(WINDOW_STRIDE * _IDX,tf.int32),1)
+        input_windowed = tf.multiply(s_var, window_shifted)
+        fft_tmp = tf.fft(tf.cast(input_windowed,tf.complex64))
+        fft_padded = tf.pad(tf.expand_dims(fft_tmp,0),[[_IDX, specgram_len - _IDX - 1],[0,0],[0,0]])
         
         #Update loop variables
-        l_idx = l_idx + 1
-        specgram=tf.add(specgram, fft_padded)
-    
-        return [l_idx,specgram]
-    
-    # total_len - window_len  > (overlap*(idx))
-    def cond(ll_idx,lcl_r_var):
-        return tf.greater( s_len - w_len, tf.cast(w_shift * ll_idx, tf.int32 ))
+        with tf.control_dependencies([fft_padded]):
+            _IDX = _IDX + 1
+            _SPECGRAM=tf.add(_SPECGRAM, fft_padded)
         
-    wh = tf.while_loop(cond,bod,loopvars,parallel_iterations=100000)
-    return wh
+            return [_IDX,_SPECGRAM]
+    
+    #total_len - window_len  > (stride*(idx))
+    def cond(_IDX, _SPECGRAM):
+        return tf.greater( SIGLEN - _WINDOW_LEN, tf.cast(WINDOW_STRIDE * _IDX, tf.int32 ))
+        
+    final_specgram = tf.while_loop(cond,bod,loopvars,parallel_iterations=100000)
+    return final_specgram
 
 
 
@@ -129,13 +137,21 @@ if True:
         
         raw_data_tensor=data_bp_filt
 
-        z=specgram_tf_2d(raw_data_tensor,500,450)
+        z=specgram_tf_2d(raw_data_tensor,_NCHAN=16, _INPUT_LEN=1900, _WINDOW_LEN=500, _WINDOW_OVERLAP=250)
         init = tf.global_variables_initializer()
-        print("Global variables init, ret: ", sess.run(init))
-        writer = tf.summary.FileWriter(".\\Logs\\",sess.graph)
-        global p
-        p=sess.run([z])
 
+
+
+        writer = tf.summary.FileWriter(".\\Logs\\",sess.graph)
+        print("Global variables init, ret: ", sess.run(init))
+        global p
+        run_options = tf.RunOptions(trace_level=tf.RunOptions.SOFTWARE_TRACE)
+        run_metadata = tf.RunMetadata()
+        p = sess.run(
+                z,
+                options=run_options,
+                run_metadata=run_metadata)
+        writer.add_run_metadata(run_metadata, 'S: %d' % 0)
 
 
 

@@ -9,7 +9,6 @@ import time
 import numpy as np
 from pylsl import  StreamInlet, resolve_stream, StreamInfo, StreamOutlet
 from threading import Thread
-import time
 
 def create_test_source(freq=10, sps=250):
     '''
@@ -100,15 +99,15 @@ def get_stream_fps():
     except KeyboardInterrupt:
         pass
     
-def create_fake_eeg(sps=250):
+def create_fake_eeg(sps=250, nchan=8):
     '''
     create fake eeg strea - for testing spectrographic 'zoom' feature
     requires some high amplitude noise as well as broad band noise for realism
     '''
-    freqs = list(range(10,18))
+    freqs = list(range(10,10+nchan))
     stream_name = "Fake_EEG_"
     stream_id = stream_name + time.strftime("_%d_%m_%Y_%H_%M_%S_")
-    info = StreamInfo(stream_name, 'EEG', 8, 250, 'float32', stream_id)
+    info = StreamInfo(stream_name, 'EEG', nchan, 250, 'float32', stream_id)
     outlet = StreamOutlet(info)
     delay = 1.0/sps
     def _target():
@@ -123,6 +122,28 @@ def create_fake_eeg(sps=250):
             outlet.push_sample(new_vals)
     _thread = Thread(target=_target)
     _thread.start()
+    return _thread
+
+def create_fake_audio(sps=250):
+    '''
+    create fake audio input
+    '''
+    stream_name = "Fake_Audio_"
+    stream_id = stream_name + time.strftime("_%d_%m_%Y_%H_%M_%S_")
+    info = StreamInfo(stream_name, 'Audio', 4, sps, 'float32', stream_id)
+    outlet = StreamOutlet(info)
+    delay = 1.0/sps
+    def _target():
+        idx = 0
+        while True:
+            time.sleep(delay)
+            outlet.push_sample([np.random.randint(1,5) for i in range(4)])
+            outlet.push_sample(new_vals)
+    _thread = Thread(target=_target)
+    _thread.start()
+    return _thread
+
+
 
 class tuneable_scalar(object):
     def __init__(self, _val=1.0):

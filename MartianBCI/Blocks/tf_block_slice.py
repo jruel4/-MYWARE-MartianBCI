@@ -9,7 +9,7 @@ import tensorflow as tf
 
 
 '''
-tf_block_convert2uv
+tf_block_slice
 
 __init__():
     in:
@@ -41,37 +41,36 @@ get_output_struct():
 '''
 
 
-class tf_block_convert2uv (Block_TF):
-    def __init__(self, _PIPE_TF, _NCHAN, _GAIN = 24):
+class tf_block_slice (Block_TF):
+    def __init__(self, _PIPE_TF, _BEGIN, _SIZE, _OUTPUT_LEN):
         self.mPipeTF = _PIPE_TF
-        self.mNCHAN_NON_TENSORFLOW = _NCHAN
-        self.mNCHAN = tf.constant(_NCHAN,shape=[])
-        self.mGAIN = tf.constant(_GAIN,shape=[])
-        self.mSCALE_FACTOR = tf.constant( ( ( (4.5/ (2**23 - 1)) / _GAIN) * 1e6),shape=[])
+        self.mBEGIN = _BEGIN
+        self.mSIZE = _SIZE
+        self.mOUTPUT_LEN = _OUTPUT_LEN
+        
+        if not isinstance(self.mBEGIN, list) or not isinstance(self.mSIZE, list):
+            raise TypeError("Beginning and size must be arrays corresponding to start position and size of output slice")
+
         self.mInKeys = None
 
     def run(self, _buf):
         if self.mInKeys == None:
             self.mInKeys = super().get_input_keys(self.mPipeTF)
-        with tf.name_scope("B_Convert2uV"):
+        with tf.name_scope("B_SliceOut"):
             input_data = _buf['data'][self.mInKeys[0]]
-            tf.assert_rank(input_data, 2, message="JCR: Input must be rank 2 tensor")
-            asserts= [
-                    tf.assert_equal(tf.shape(input_data)[0], self.mNCHAN,
-                                    message="JCR: Input Dim-0 must equal number of channels")
-                    ]
-    
-            with tf.control_dependencies(asserts):
-                dout=tf.multiply(input_data[:], self.mSCALE_FACTOR)
-                return {
-                        'data':{'uV':dout},
-                        'summaries':_buf['summaries'],
-                        'updates':_buf['updates']
-                        }
-    
+            tf.assert_rank_at_least(input_data, 1,
+                                    message="ReduceDims: Input must be rank at least rank 1 tensor")
+            dout=tf.slice(input_data, self.mBEGIN, self.mSIZE)
+            
+            return {
+                    'data':{'slice':dout},
+                    'summaries':_buf['summaries'],
+                    'updates':_buf['updates']
+                    }
+
     def get_output_struct(self):
         return {
-                'data':{'uV':[self.mNCHAN_NON_TENSORFLOW,-1]},
+                'data':{'slice':self.mOUTPUT_LEN},
                 'summaries':0,
                 'updates':0
                 }

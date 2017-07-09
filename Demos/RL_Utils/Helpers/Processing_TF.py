@@ -92,7 +92,7 @@ def extract_frequency_bins(raw_input,f_start,f_end,num_bins,Fs=250,L=1000):
         t_end=np.int64((L/Fs)*f_end)
         assert np.mod((t_end-t_start),num_bins) == 0, "Error, cannot evenly break up frequency bins: "# + (t_end-t_start) + " total bin points but " + num_bins + " requested bins."
                             
-        raw_fft=tf.fft(raw_input)
+        raw_fft=tf.fft(tf.cast(raw_input, tf.complex64))
         sliced_raw_fft = tf.slice(raw_fft,[0,t_start],[-1,t_end-t_start])
         sliced_raw_fft_t = tf.split(sliced_raw_fft,num_bins,axis=1)
         sliced_raw_fft_t_abs = tf.abs(sliced_raw_fft_t)
@@ -134,7 +134,10 @@ def multi_ch_conv(data,kernel,bidir=True):
     '''
 
     asserts= [
-            tf.assert_less_equal(kernel_len, num_samples, message="JCR: Lenth of kernel must be shorter than the length of the input.")
+            tf.assert_less_equal(kernel_len, num_samples,
+                                 message="JCR: Lenth of kernel must be shorter than the length of the input.",
+                                 data=[num_channels, num_samples, kernel_len]
+                                 )
             ]
 
     with tf.control_dependencies(asserts):
@@ -147,11 +150,11 @@ def multi_ch_conv(data,kernel,bidir=True):
         with tf.name_scope("Conv1D"):
             #Reshape to use with conv1d
             #[batch,width,chan]
-            data_1d = tf.reshape(data_pad,[1,-1,1])
+            data_1d = tf.cast(tf.reshape(data_pad,[1,-1,1]),tf.float32)
             
             #Reshape kernel to use with conv1d
             #[width,chan_in,chan_out]
-            kernel_1d = tf.reshape(kernel,[-1,1,1])
+            kernel_1d = tf.cast(tf.reshape(kernel,[-1,1,1]), tf.float32)
         
             conv_raw = tf.nn.conv1d(data_1d,kernel_1d,1,'SAME')
             
