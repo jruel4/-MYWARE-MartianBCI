@@ -17,19 +17,7 @@ import random
 from sklearn import datasets
 from matplotlib import pyplot as plt
 
-# import some data to play with
-iris = datasets.load_iris()
-
-# Data sets
-IRIS_TRAINING = "cs-testing.csv"
-
 # Load datasets.
-training_set = tf.contrib.learn.datasets.base.load_csv_with_header(
-    filename=IRIS_TRAINING,
-    target_dtype=np.int,
-    features_dtype=np.float32)
-
-
 env = RLEnv.RLEnv()
 x = np.asarray([randint(0,50) for i in range(100000)])
 x = x.reshape((x.shape[0],1))

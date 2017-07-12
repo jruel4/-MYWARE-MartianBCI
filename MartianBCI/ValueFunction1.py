@@ -11,7 +11,6 @@ from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
-import timeit
 import time
 from scipy import signal
 from pylsl import  StreamInlet, resolve_stream
@@ -25,17 +24,6 @@ from MartianBCI.Blocks.Block_LSL import Block_LSL
 from MartianBCI.Blocks.block_spectrogram import block_spectrogram
 from MartianBCI.Blocks.block_reshape import block_reshape
 
-# Neural net
-from MartianBCI.NN_CNNDropoutDense import cnn_model_EEG_0
-from MartianBCI.NN_simple_regressor_model0 import simple_regressor_model0
-
-import tensorflow as tf
-from tensorflow.contrib import learn
-from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_fn_lib
-from tensorflow.contrib.learn.python.learn.utils import input_fn_utils as TFUtils
-
-
-
 ## BUG
 ## Doesn't work when G_BATCH_SIZE < nFFT
 
@@ -46,7 +34,7 @@ G_SIGLEN = 500
 G_NCHAN = 8
 G_BATCH_SIZE = 1
 G_logs = 'C:\\Users\\marzipan\\workspace\\MartianBCI\\MartianBCI\\Logs\\'
-G_logdir = G_logs + 'ValueFunction_MaybeWorking5_RandomKernelInit_3\\'
+G_logdir = G_logs + 'ValueFunction_MaybeWorking5_RandomKernelInit_7\\'
 
 # Spectrogram parameters
 G_nPerSeg = 250
@@ -63,15 +51,21 @@ G_SpectrogramLen = G_SpectrogramShape[-1]
 G_SpectrogramFreqs = G_SpectrogramShape[-2]
 
 # Regressor Model 0 Hyperparameters
-G_dense0_size = 5000
+G_dense0_size = 100
+G_dense1_size = 100
 G_dropout0_rate = 0.2
+G_dropout1_rate = 0.2
+
 
 # Super hacky, get rid of this
 G_optimal_profile_mask = np.tile(np.asarray([[int(x == 10)]* G_NCHAN for x in G_Freqs]),[G_BATCH_SIZE,1,1])
 
 
-G_f1 = np.linspace(0.5,30,50)
-G_f2 = np.linspace(0.5,30,50)
+#G_f1 = np.linspace(0.5,30,50)
+#G_f2 = np.linspace(0.5,30,50)
+
+G_f1 = np.linspace(0,100,50)
+G_f2 = np.linspace(0,100,50)
 G_a1 = np.linspace(0,1,10)
 G_a2 = np.linspace(0,1,10)
 
@@ -82,6 +76,7 @@ G_valid_audio = np.asarray(
         a1 in G_a1 for
         a2 in G_a2]
         )
+
 
 '''
 Accepts 4 inputs corresponding to the current audio parameters and outputs all neighbors within a radius of "r" 
@@ -104,6 +99,7 @@ def valid_next_audio_steps(f1,f2,a1,a2,r=2):
         v_a1 in G_a1[max([0, a1idx - r]) : min([len(G_a1), a1idx + r + 1])] for
         v_a2 in G_a2[max([0, a2idx - r]) : min([len(G_a2), a2idx + r + 1])]]
         )
+
 
 ### PREPROCESSING PIPELINE
 def eeg_preprocessing():
@@ -159,6 +155,9 @@ def setup_lsl_audio_stream():
 
 
 
+        
+# protocol
+# [ begin_freq, end_freq, percent_total_reward, increase/decrease ] 
 
 # LSL INPUT LOOP
 def lsl_acquisition_thread(inlets, queues):
@@ -192,84 +191,68 @@ G_TestSig = np.asarray(
 dur0=list()
 dur1=list()
 dur2=list()
+
+n_len=5
+s=0
+func_tst = np.asarray([[x,x**2] for x in np.linspace(0,5,n_len)])
+def input_fn_live_tst(local_queue, previous_expected_value, f1,f2,a1,a2, timeout=(G_UpdateInterval), test=False):
+    global func_tst
+    global s
+    spect=np.zeros(G_SpectrogramShape)
+    spect=np.asarray([np.transpose(spect, [3,2,0,1])[0,:,:,:]])
     
+    s = (s+1) % n_len
+    audio=np.asarray([[ func_tst[s,0], 0, 0, 0 ]])
+    reward = np.asarray([[ func_tst[s,1] ]])
+    out = {'specgram':spect,
+            'audio': audio,
+            'previous_expected_value':np.asarray([[100.0]]),
+            'current_reward':reward}
+    return out
+
+
+
+
 # NN LIVE INPUT FN
-def input_fn_live(local_queue, previous_expected_value, f1,f2,a1,a2, timeout=(G_UpdateInterval), test=False):
+def input_fn_live(local_queue, previous_expected_value, f1,f2,a1,a2, timeout=(G_UpdateInterval)):
     global q_len
     global dur0, dur1, dur2
 
     eeg_feat = list()
     label = list()
     
-    # Logging
+    # Logging (input queue length)
     q_len.append(local_queue.qsize())
     
     # Pull in next spectrograms (or, if in test mode, generate them)
     Sxx_in = list()
-    if test:
-        # Declare this global so we don't have to constantly re-generate it
-        global G_TestSig
 
-        # Time the spectrograms
-        a=time.time()
-        t,f,Sxx_in = signal.spectrogram(
-                G_TestSig,
-                fs=G_FS,
-                nperseg=G_nPerSeg,
-                noverlap=G_nOverlap,
-                nfft=G_nFFT)
-        print("INFN Test: Spectro ", time.time() - a)
-        a=time.time()
-        Sxx_in = Sxx_in.ravel()
-        print("INFN: Ravel ", time.time() - a)
-    else:
-        # Wait until the queue is full
-        a = time.time()
-        while local_queue.qsize() < G_BATCH_SIZE:
-            pass
+    # Wait until the queue is full
+    while local_queue.qsize() < G_BATCH_SIZE: pass
 
-        for i in range(G_BATCH_SIZE):
-            # Will raise Empty if empty; should never happen, should ALWAYS be checked before being called
-            a=time.time()
-            guy=local_queue.get(block=True,timeout=timeout)
-            dur0.append(time.time()-a)
-
-            a=time.time()
-            npguy=np.asarray(guy)
-            dur1.append(time.time()-a)
-
-            a=time.time()
-            Sxx_in.append(npguy)
-            dur2.append(time.time()-a)
-
+    for i in range(G_BATCH_SIZE):
+        # Will raise Empty if empty; should never happen, should ALWAYS be checked before being called
+        Sxx_in.append(np.asarray(local_queue.get(block=True,timeout=timeout)))
 
     # Unravel the spectrogram (LSL only outputs in 1D)
-    a=time.time()
     Sxx_unravel = np.reshape(Sxx_in, [G_BATCH_SIZE, G_NCHAN, G_SpectrogramFreqs, G_SpectrogramLen])
-#    print("INFN: Unravel ", time.time() - a)
-    # Transform to match NN input, from [batch_size, nchan, freqs, timesteps] to [batch_size, freqs, timesteps, nchan]
-    a=time.time()
-    Sxx = np.transpose(Sxx_unravel, [0,2,3,1])
-#    print("INFN: Transpose ", time.time() - a)
-    # NN Expects absolute value and float32
-    Sxx = np.abs(Sxx).astype(np.float32)
 
+    # Transform to match NN input from:
+    #   [batch_size, nchan, freqs, timesteps] to
+    #   [batch_size, freqs, timesteps, nchan]
+    # Also, NN Expects absolute value and float32
+    Sxx = np.abs( np.transpose(Sxx_unravel, [0,2,3,1]) ).astype(np.float32)
+
+    
     # Features are timesteps 0:N-1, label is N
     eeg_feat = Sxx[:,:,0:-1,:]
-#    print(eeg_feat.shape, " EE Feat Shape")
-#    print(previous_expected_value.shape, " Prev Expected Val Shape")
     previous_expected_value = np.reshape(previous_expected_value, [-1,1])
-#    print(previous_expected_value.shape, " Prev Expected Val Shape New")
     label = Sxx[:,:,-1,:]
     
     # Calculate Euclidean distance from current position to the optimal position
-    value = np.linalg.norm(G_optimal_profile_mask * (100 - label), axis=(1,2))
-    value = np.expand_dims(value,1)
-    
-    if False and ([f1,f2,a1,a2] == G_valid_audio[0]).all():
-        print("Got it!")
-        # This should be learned quickly!
-        value = value * 0
+    value = np.asarray([[100]]*len(eeg_feat))
+#    value = np.linalg.norm(G_optimal_profile_mask * (100 - label), axis=(1,2))
+#    value = np.expand_dims(value,1)
 
     audio = np.asarray([[f1,f2,a1,a2]]*len(eeg_feat)).astype(np.float32)
 
@@ -324,113 +307,112 @@ def main(unused_argv):
 
 
 
-
     # Unpack the input features and labels
-#    actual_next_state = tf.placeholder(tf.float32)
-#    specgram = tf.placeholder(tf.float32)
-#    audio = tf.placeholder(tf.float32)
-    prev_predicted_value = tf.placeholder(tf.float32, shape=[None, 1])
-    current_reward = tf.placeholder(tf.float32, shape=[None,1])
-    specgram = tf.placeholder(tf.float32, shape=[None, G_SpectrogramFreqs, G_SpectrogramLen - 1, G_NCHAN])
-    audio = tf.placeholder(tf.float32, shape=[None, 4])
+    value_pred_sneg1 = tf.placeholder(tf.float32, shape=[None, 1],name="PredictedValueS0")
+    reward_s0_a0 = tf.placeholder(tf.float32, shape=[None,1])
+    s0_specgram = tf.placeholder(tf.float32, shape=[None, G_SpectrogramFreqs, G_SpectrogramLen - 1, G_NCHAN])
+    s0_audio = tf.placeholder(tf.float32, shape=[None, 4])
+    print(reward_s0_a0)
+    print(s0_specgram)
+    print(s0_audio)
 
     # Input Reshaping
     # Flatten the spectrogram and audio inputs
-    # Input Tensor Shape: [batch_size, freqs, timesteps, nchan], [batch_size, freqs, amps]
-    # Output Tensor Shape: [batch_size, s_freqs * timesteps * nchan], [batch_size * a_freqs * amps]
-    specgram_flat = tf.contrib.layers.flatten(specgram)
-    audio_flat = tf.contrib.layers.flatten(audio)
-
-    print(current_reward)
-    print(specgram)
-    print(audio)
-    print(specgram_flat)
-    print(audio_flat)
+    s0_specgram_flat = tf.contrib.layers.flatten(s0_specgram)
+    s0_audio_flat = tf.contrib.layers.flatten(s0_audio)
+    print(s0_specgram_flat)
+    print(s0_audio_flat)
     
     # Create Input Layer
-    # Join audio and spectrogram data to use as input to NN
-    # Input Tensor Shapes: [batch_size, s_freqs * timesteps * nchan], [batch_size * a_freqs * amps]
-    # Output Tensor Shape: [batch_size, s_freqs * timesteps * nchan + batch_size * a_freqs * amps]
-    # NOTE: Denoting the input size as [batch_size, features] from here-on-out
-    input_layer = tf.concat([specgram_flat, audio_flat], axis=1)
+    # Join audio and spectrogram data to use as input layer
+    input_layer = tf.concat([s0_specgram_flat, s0_audio_flat], axis=1)
     print(input_layer)
 
     # Dense Layer 1
     # Densely connected layer with 8192 neurons
-    # Input Tensor Shape: [batch_size, features]
-    # Output Tensor Shape: [batch_size, 8192]
-    dense0 = tf.layers.dense(inputs=input_layer,
-                            units=G_dense0_size,
-                            kernel_initializer=tf.random_uniform_initializer(),
-#                            bias_initializer=tf.random_uniform_initializer(),
-                            activation=tf.nn.relu)
-    
-    
+    dense0 = tf.layers.dense(
+                inputs=input_layer,
+                units=G_dense0_size,
+                kernel_initializer=tf.random_uniform_initializer(),
+                bias_initializer=tf.random_uniform_initializer(),
+                activation=tf.sigmoid)    
     print(dense0)
+
     # Dropout 1
     # Add dropout operation; 0.5 probability that element will be kept
     dropout0 = tf.layers.dropout(inputs=dense0,
                                 rate=G_dropout0_rate,
-                                training=True)
-    
+                                training=False)
     print(dropout0)
+
+
+    # Dense Layer 1
+    # Densely connected layer with 8192 neurons
+    dense1 = tf.layers.dense(
+                inputs=input_layer,
+                units=G_dense1_size,
+#                kernel_initializer=tf.random_uniform_initializer(),
+#                bias_initializer=tf.random_uniform_initializer(),
+                activation=tf.sigmoid)    
+    print(dense1)
+
+    # Dropout 2
+    # Add dropout operation; 0.5 probability that element will be kept
+    dropout1 = tf.layers.dropout(inputs=dense1,
+                                rate=G_dropout1_rate,
+                                training=False)
+    print(dropout1)
+
+
     # Add a final, fully connected layer which will represent our output state
-    output_layer = tf.layers.dense(inputs=dropout0,
+    output_layer = tf.layers.dense(inputs=dropout1,
                                    units=1,
-                                   activation=tf.nn.relu)
-    
+                                   activation=None)
     print(output_layer)
 
-    # What we predict the next state will be
-    next_predicted_value = output_layer
-    
-    print(next_predicted_value)
-    
+    # V(S0,A0)
+    value_pred_s0 = output_layer
+        
     # Calculate Loss (for both TRAIN and EVAL modes)
     '''
     JCR NOTE:
         MSE would appear to be a reasonable loss
         function to start out with
     '''
-
     gamma_decay = tf.constant(0.2, name='GammaDecay')
     loss = tf.losses.mean_squared_error(
-        labels=(current_reward + gamma_decay * next_predicted_value),
-        predictions=prev_predicted_value
+        labels=(reward_s0_a0 + gamma_decay * value_pred_s0),
+        predictions=value_pred_sneg1
         )
     
-    
-    # Train Op    
+    # Define Summaries
     tf.summary.scalar('loss', loss)
-    tf.summary.scalar('act', current_reward[0,0])
-    tf.summary.scalar('prev_predicted', prev_predicted_value[0,0])
-    tf.summary.scalar('next_predicted', next_predicted_value[0,0])
-    tf.summary.image('specgram',specgram[:,:,:,0:1])
+    tf.summary.scalar('reward', reward_s0_a0[0,0])
+    tf.summary.scalar('prev_predicted', value_pred_sneg1[0,0])
+    tf.summary.scalar('next_predicted', value_pred_s0[0,0])
+#    tf.summary.image('specgram',s0_specgram[0,:,:,0:1])
+
+    # Write new visualization
+    config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
+    d0_kern = config.embeddings.add()
+    d0_kern.tensor_name = 'dense/kernel'
+    d0_kern.metadata_path = G_logdir + 'emb_mappings.tsv'    
+
+    # TRAINING OPS
+    
     # Create the gradient descent optimizer with the given learning rate.
-    optimizer = tf.train.AdamOptimizer(0.05)
+    optimizer = tf.train.GradientDescentOptimizer(5e-3)
+
     # Create a variable to track the global step.
     global_step = tf.Variable(0, name='global_step', trainable=False)
+
     # Use the optimizer to apply the gradients that minimize the loss
     # (and also increment the global step counter) as a single training step.
     train_op = optimizer.minimize(loss, global_step=global_step)
     
-    # Write new visualization
-    writer = tf.summary.FileWriter(G_logdir)
-    config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
-    dense_emb = config.embeddings.add()
-    dense_emb.tensor_name = 'dense/kernel'
-    dense_emb.metadata_path = G_logdir + 'emb_mappings.tsv'
-    dense_emb1 = config.embeddings.add()
-    dense_emb1.tensor_name = 'dense/kernel/Adam'
-    dense_emb1.metadata_path = G_logdir + 'emb_mappings.tsv'
-    dense_emb2 = config.embeddings.add()
-    dense_emb2.tensor_name = 'dense/kernel/Adam_1'
-    dense_emb2.metadata_path = G_logdir + 'emb_mappings.tsv'
-    tf.contrib.tensorboard.plugins.projector.visualize_embeddings(writer, config)
     
-    # Build the summary Tensor based on the TF collection of Summaries.
-    summary = tf.summary.merge_all()
-
+    # TF INIT
+    
     # Add the variable initializer Op.
     init = tf.global_variables_initializer()
 
@@ -438,113 +420,127 @@ def main(unused_argv):
     saver = tf.train.Saver()
 
     # Create a session for running Ops on the Graph.
+    global sess
     sess = tf.Session()
 
-    # Instantiate a SummaryWriter to output summaries and the Graph.
+    # Create the summary writer
     summary_writer = tf.summary.FileWriter(G_logdir, sess.graph)
-
-    # And then after everything is built:
+    summary = tf.summary.merge_all()
+    tf.contrib.tensorboard.plugins.projector.visualize_embeddings(summary_writer, config)
 
     # Run the Op to initialize the variables.
     sess.run(init)
 
+
     # START MAIN EVAL LOOP
+    
     global batch_feats
     global batch_lbls
     global batch_shapes
     global durations
     global best_audio
     global next_audio
+    global d0_act
+    d0_act = list()
+    global o0_act
+    o0_act = list()
+    global do0_act
+    do0_act = list()
+    global l0_act
+    l0_act = list()
+    global bw_act
+    bw_act = list()
+
     best_audio = list()
     durations = list()
     batch_shapes = list()
-    prev_predicted_value_lcl = np.zeros([1,1])
-    for step in range(250):
+    value_pred_s0_lcl = np.zeros([1,1])
+
+    spect=np.ones(G_SpectrogramShape)
+    spect=np.asarray([np.transpose(spect, [3,2,0,1])[0,:,:,:]])
+
+    for step in range(50):
         start=time.time()
         batch_inputs = list()
 
+        # Acquire new data
         a = time.time()
-        # Only eval every second
-        for i in range(1):
-            inputs = input_fn_live(EEGInputQueue, prev_predicted_value_lcl, f1,f2,a1,a2,test=True)
-            batch_inputs.append(inputs)
-
-#        print("Acquire data: ", time.time() - a)
+        inputs = input_fn_live(EEGInputQueue, value_pred_s0_lcl, f1,f2,a1,a2)
+        batch_inputs.append(inputs)
         batch_shapes.append(np.shape(batch_inputs))
 
-        '''
-        global feed_dict_batch
-        feed_dict_batch = {
-            specgram:np.concatenate([x['specgram'] for x in batch_inputs]),
-            audio:np.concatenate([x['audio'] for x in batch_inputs]),
-            prev_predicted_value:np.concatenate(x['previous_expected_value'] for x in batch_inputs),
-            current_reward:np.concatenate([x['current_reward'] for x in batch_inputs])
+        # Get next valid audio
+        next_audio = valid_next_audio_steps(f1,f2,a1,a2,r=2)
+        feed_dict_greedy_select = {
+            s0_specgram     :   np.tile(inputs['specgram'][0],[len(next_audio),1,1,1]),
+            s0_audio        :   next_audio
             }
-        '''
-
-        # Evaluate - Calculate both A0 and best Q(S0,A0)
-        s=time.time()
-        next_audio = valid_next_audio_steps(f1,f2,a1,a2,r=5)
-        feed_dict_eval = {
-            specgram:np.tile(inputs['specgram'][0],[len(next_audio),1,1,1]),
-            audio:next_audio,
-# I don't think you need the placeholder if it's not used
-#            actual_value:np.tile(lbl['next_value'][0],[len(next_audio),1])
-#            prev_predicted_value:inputs['previous_expected_value'],
-#            current_reward:inputs['current_reward']
-            }
-        arg_val = sess.run(next_predicted_value, feed_dict_eval)
         
-        if (step + 1) % 50 == 0:
-            print("Evaluation time taken: ", time.time() - s)
-            print("Best Audio: ", next_audio[np.argmin(arg_val)])
-
-        argmin_idx = np.argmin(arg_val)
+        # Generate greedy Q(S0,A0)
+        possible_action_values = sess.run(value_pred_s0, feed_dict_greedy_select)
+        
+        # Get A0 from agrmin(Q(S0,A0))
+        argmin_idx = np.argmin(possible_action_values)
         f1,f2,a1,a2 = next_audio[argmin_idx]
         
         # This temporarily stores the predicted value to use as the "previously predicted value" in the next iteration
-        prev_predicted_value_lcl = arg_val[argmin_idx]
+        value_pred_s0_lcl = possible_action_values[argmin_idx]
+        l0_act.append(value_pred_s0_lcl)
         
-        
+        if (step + 1) % 25 == 0:
+            print("Evaluation time taken: ", time.time() - s)
+            print("Best Audio: ", next_audio[np.argmin(possible_action_values)])
+            best_audio.append([f1,f2,a1,a2])
+
         # Setup the feed dict for the loss function
-        feed_dict = {
-            specgram:inputs['specgram'],
-            audio:np.asarray([[f1,f2,a1,a2]]),
-            prev_predicted_value:inputs['previous_expected_value'],
-            current_reward:inputs['current_reward']
-            }
+        feed_dict_training = {
+            s0_specgram         :   inputs['specgram'],
+            s0_audio            :   inputs['audio'],
+            value_pred_sneg1    :   inputs['previous_expected_value'],
+            reward_s0_a0        :   inputs['current_reward'],
+            }        
+        
+        # Weights
+        b_w = dict()
+        for i in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES):
+            b_w.update({i.name: sess.run(i)})
+        bw_act.append(b_w)
+        
+        
+        # Loss checking
+        d0,do0,o0,l0 = sess.run([dense0,dropout0,output_layer,loss], feed_dict=feed_dict_training)
+        d0_act.append(d0)
+        do0_act.append(do0)
+        o0_act.append(o0)
+        l0_act.append(l0)
         
         
         # Logging
-        best_audio.append([f1,f2,a1,a2])
+        
         durations.append(time.time() - start)
         
         # Train / Update Model
         start_time = time.time()
         _, loss_value = sess.run([train_op, loss],
-                                 feed_dict=feed_dict)
+                                 feed_dict=feed_dict_training)
 
         train_duration = time.time() - start_time
 
         # Write the summaries and print an overview fairly often.
-        a=time.time()
-        if step % 100 == 0:
+        if step % 10 == 0:
             print('Step %d: loss = %.2f (%.3f sec)' % (step, loss_value, train_duration))
-            summaries = sess.run(summary, feed_dict=feed_dict)
+            summaries = sess.run(summary, feed_dict=feed_dict_training)
             summary_writer.add_summary(summaries, step)
             summary_writer.flush()
-#        print("Summary writing: ", time.time() - a)
-
+    
         # Save a checkpoint periodically.
-        a=time.time()
-        if (step + 1) % 200 == 0:
+        if (step + 1) % 50 == 0:
             print("Saving checkpoint")
             checkpoint_file = G_logdir + 'model.ckpt'
             saver.save(sess, checkpoint_file, global_step=step)
 #        print("Checkpoint writing: ", time.time() - a)
 
     # End of run loop
-
     G_PipelineHandle.stop()
 #    acquisition_thread.stop()
     G_RunThreadEvent.clear()
