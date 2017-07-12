@@ -92,6 +92,63 @@ def protocol_0(time):
     arr[OUT] = 1
     return arr
 
+# Gets passed in an array! Generator
+def protocol_1_follow_beta(time_array):
+    state = [0]*50
+    action = None
+    '''
+    Simple biofeedback protocol which: 
+        
+        1) couples oscillator volume to beta power.
+    
+        2) sets AM to 0
+    
+        3) sets FM to cycles of 3 notes 
+    
+    **NOTE** assuming all frequency power values are scaled 0-1
+    
+    Output:
+        - Returns index of one-hot vector
+    
+    '''
+    AM_OFFSET = 0
+    FM_OFFSET = 30
+    VOL_OFFSET = 50
+    
+    beta_idx = 3
+    FM_vals = [10, 12, 15]
+    
+    if not hasattr(time_array, '__iter__'):
+        raise TypeError("protocol_1_follow_beta needs to be passed an iterable")
+    
+    # Generate beta states
+    audio_states = np.zeros([len(time_array), 60])
+    eeg_states = np.zeros([len(time_array), 50])
+    for idx in range(len(eeg_states)): eeg_states[idx][beta_idx] = (idx % 100) / 100
+    for idx in range(len(audio_states)):
+        # Amplitude Modulation Step
+        if idx % 3 == 0:
+            OUT = 0 + AM_OFFSET
+        # Base Frequency Step
+        elif (idx+1) % 3 == 0:
+            FM_IDX = FM_vals[idx % 3]
+            OUT = FM_IDX + FM_OFFSET
+        # Base Volume Step
+        elif (idx+2) % 3 == 0:
+            beta_power = np.max(eeg_states[idx]) + 1e-10 #JCR note: added this to avoid div_by_zero error
+            log_vol = np.max([0, (np.log10(beta_power)/2) + 1])
+            steps = np.linspace(0,1,num=10)
+            diffs = np.abs(steps - log_vol)
+            VOL_IDX = np.argmin(diffs)            
+            OUT = VOL_IDX + VOL_OFFSET
+        audio_states[idx][OUT] = 1
+
+    # I don't know if this is necessary - should audio states be 1 step ahead of EEG?
+#    audio_states = np.roll(audio_states, 1, axis=0)
+    out_dict = {'a': np.concatenate([audio_states,eeg_states],axis=1).tolist(),
+                'b': audio_states.tolist()}
+    return out_dict
+
 # --1-- easy model
 
 # Start with less noisy data generation
