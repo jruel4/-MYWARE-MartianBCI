@@ -1,0 +1,5 @@
+*.pyc
+*.p
+.\.spyderproject
+Demos/Logs
+*tfevents*
