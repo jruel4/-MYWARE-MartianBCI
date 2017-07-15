@@ -40,30 +40,21 @@ for snum in range(4):
         print("analyzing stream: "+str(snum)+" channel: "+str(chnum))
         # get series
         x = streams[snum][:,chnum]
-        # loop through series
-        for i in range(len(x)-250-1):
+        # loop through series 
+        i = 0            
+        while i < (len(x) - 250): 
             segment = x[i:i+250]
-            if abs(max(segment) - min(segment)) > MAX_AMP:
-                num_cut[snum][chnum] += [i]
-  
-'''              
-# Efficient version of above, starts at '#loop through series' comment
-
-# loop through series 
-i = 0            
-while i < (len(x) - 250): 
-    segment = x[i:i+250]
-    amax = np.argmax(segment)
-    amin = np.argmin(segment)
-    furthest_idx = amax if amax > amin else amin
-    maxval = segment[amax]
-    minval = segment[amin]
-    if abs(maxval - minval) > MAX_AMP:
-        num_cut[snum][chnum] += [i]
-        # skip ahead to furthest
-        i = furthest_idx
-i += 1
-'''  
+            amax = np.argmax(segment)
+            amin = np.argmin(segment)
+            furthest_idx = amax if amax > amin else amin
+            furthest_idx += i # make it relative to whole series
+            maxval = segment[amax]
+            minval = segment[amin]
+            if abs(maxval - minval) > MAX_AMP:
+                num_cut[snum][chnum] += [i, furthest_idx]
+                # skip ahead to furthest
+                i = furthest_idx
+            i += 1 
 
 # num_cut indices are highly redundant => reduce to True/False per epoch loop
 # over epochs and check if any of the member indicies of a given epoch are 
@@ -97,6 +88,41 @@ for snum in range(4):
             if len(epoch_set.intersection(bad_set)) > 0:
                 bad_epoch[snum][chnum][i] = True
             
+'''
+Use bad_epoch flags to cut out bad data from each stream
+
+How to handle remaining, discontinuous data?
+
+    1) First lets just concatentate it together and see what happens...
+'''
+
+# Create 32 new series, with each series a concatenation of clean epochs only
+clean_series_list = [[np.asarray([]) for i in range(8)] for j in range(4)]
+
+for snum in range(4):
+    for chnum in range(8):
+        
+        print("Recreating stream: "+str(snum)+" channel: "+str(chnum))
+        
+        series = streams[snum][:,chnum]
+        
+        # loop over epochs
+        num_epochs = int(np.floor(len(series)/250.0)) - 1
+        for i in range(num_epochs):
+            
+            if i > (len(bad_epoch[snum][chnum])-1):
+                # epoch is good
+                epoch = series[i*250:i*250+250]
+                clean_series_list[snum][chnum] = np.concatenate((clean_series_list[snum][chnum],epoch))  
+                continue
+            else:
+                if not bad_epoch[snum][chnum][i]:
+                    # epoch is good
+                    epoch = series[i*250:i*250+250]
+                    clean_series_list[snum][chnum] = np.concatenate((clean_series_list[snum][chnum],epoch))
+                else:
+                    # epoch is bad
+                    pass
 
 # create wavelet 
 M = 256
