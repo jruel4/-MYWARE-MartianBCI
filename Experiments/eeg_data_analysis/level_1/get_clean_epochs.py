@@ -58,11 +58,8 @@ def get_clean_epochs(x):
             bad_epoch[i] = True
             
     '''
-    Use bad_epoch flags to cut out bad data from each stream
-    
-    How to handle remaining, discontinuous data?
-    
-        1) First lets just concatentate it together and see what happens...
+    We can do this in one loop now! All code below should be eliminated
+    and worked into look above this comment.
     '''
     
     # Create 32 new series, with each series a concatenation of clean epochs only
