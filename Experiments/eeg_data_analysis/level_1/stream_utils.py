@@ -14,3 +14,6 @@ def convert_to_volts(x):
     b2v = get_voltage_factor()
     # Convert to volts
     return x*b2v
+    
+def v2uv(x):
+    return x * 1e6

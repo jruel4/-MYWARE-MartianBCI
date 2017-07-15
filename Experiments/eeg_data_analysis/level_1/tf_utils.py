@@ -23,5 +23,5 @@ def get_beta_power_from_epochs(epoch_list):
     for epoch in epoch_list:    
         beta_power += [np.abs(np.dot(bm, epoch))]
     
-    return beta_power
+    return np.asarray(beta_power)
     

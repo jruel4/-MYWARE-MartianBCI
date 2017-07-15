@@ -13,6 +13,8 @@ def plot_new_figure(x,y,id1,id2):
     fig.suptitle(title, fontsize=20)
     ax = fig.add_subplot(1,1,1)
     ax.plot(x, y)
+    plt.xlabel('Time (minutes)', fontsize=18)
+    plt.ylabel('Power (microvolts)', fontsize=16)
     plt.show()
     
     
