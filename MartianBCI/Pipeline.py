@@ -8,8 +8,9 @@ Created on Sun Mar 19 22:17:14 2017
 # Define imports
 import pylsl
 from threading import Thread, Event
-from queue import Queue
-import queue
+#from queue import Queue
+from multiprocessing import Queue
+#import queue
 import time
 import numpy as np
 from collections import deque
@@ -248,8 +249,8 @@ class Pipeline:
                 new_data = np.asarray(self.mInQueue.get(block=True, timeout=1.0/self.mInlet.info().nominal_srate()))
                 buffer.append(new_data[self.mChanSel])
                 new_count += 1
-            except queue.Empty as e:
-                pass
+            except Exception as e:
+                print(e)
             if new_count >= self.mSampleUpdateInterval and len(buffer) >= self.mInbufLen: 
                 new_count = 0
                 

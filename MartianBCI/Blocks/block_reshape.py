@@ -11,18 +11,10 @@ import numpy as np
 
 class block_reshape (Block):
     
-    def __init__(self, _pipe, _INPUT_SHAPE, _OUTPUT_SHAPE):   
+    def __init__(self, _pipe):   
         self.mPipe = _pipe
         
-        #Verify input parameters
-        try:
-            iter(_INPUT_SHAPE)
-            iter(_OUTPUT_SHAPE)
-        except TypeError:
-            raise TypeError("Input or output shape is not iterable, I: ", _INPUT_SHAPE, "   O:", _OUTPUT_SHAPE)
-            
-        self.mInputShape = _INPUT_SHAPE
-        self.mOutputShape = _OUTPUT_SHAPE
+
         
         self.mInKeys = None
         
