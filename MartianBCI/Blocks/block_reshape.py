@@ -29,7 +29,7 @@ class block_reshape (Block):
     def run(self, _buf, test=False):
         
         if self.mInKeys == None:
-            self.mInKeys = super().get_input_keys(self.mPipe)
+            self.mInKeys = super(block_reshape, self).get_input_keys(self.mPipe)
         buf = np.asarray(_buf[self.mInKeys[0]])
         return {'reshape':np.reshape(buf, self.mOutputShape)}
     
