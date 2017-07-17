@@ -15,6 +15,7 @@ import numpy as np
 __all__ = ['load_xdf']
 __version__ = '1.14.0'
 
+fname1="C:\\Users\\marzipan\\workspace\\AlphaScan\\new_file_5966e8a488dba01e606b3f49.xdf"
 
 def load_xdf(filename,
              on_chunk=None,
@@ -524,13 +525,14 @@ def _jitter_removal(streams,
                 ranges = [(0, nsamples-1)]
 
             # Process each segment separately
-            num_samples = []
+            num_samples = np.asarray([])
             effective_srate = []
+            print("Ranges ", np.shape(ranges))
             for range_i in ranges:
                 if range_i[1] > range_i[0]:
                     indices = np.arange(range_i[0], range_i[1]+1, 1)
                     tmp_duration = len(indices)
-                    num_samples.append(tmp_duration)
+                    num_samples = np.append(num_samples, tmp_duration)
                     duration = (stream.time_stamps[range_i[1]] -
                                 stream.time_stamps[range_i[0]])
                     effective_srate.append(tmp_duration/duration)

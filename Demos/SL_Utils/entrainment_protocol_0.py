@@ -101,7 +101,7 @@ def protocol_1_follow_beta(time_array):
         
         1) couples oscillator volume to beta power.
     
-        2) sets AM to 0
+        2) sets AM to 0 / if AM
     
         3) sets FM to cycles of 3 notes 
     

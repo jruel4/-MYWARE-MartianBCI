@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-# -*- coding: utf-8 -*-
 """
 Created on Mon Jul 10 16:20:21 2017
 
@@ -16,6 +15,7 @@ from sklearn.metrics import mean_squared_error
 from basic_lstm import lstm_model
 from data_processing import generate_data
 from entrainment_protocol_0 import protocol_0, protocol_mod_4, create_protocol,protocol_1_follow_beta
+from entrainment_protocol_1 import protocol_1, protocol_1_generator
 import time
 
 tf.reset_default_graph()
@@ -23,27 +23,29 @@ tf.reset_default_graph()
 N = 60
 
 # Tunable parameters (ALSO Learning Rate)
-NUM_CELLS = 3
-NUM_UNITS = 500
-TIMESTEPS = 2
+NUM_CELLS = 6
+NUM_UNITS = 200
+TIMESTEPS = 1
 
-LEARNING_RATE=1E-3
-
+LEARNING_RATE=1E-7
 
 #protocol = create_protocol(N)
 
 LOG_DIR = 'C:\\Users\\marzipan\\workspace\\MartianBCI\\MartianBCI\\Logs\\LSTMRegressor_Model0\\' + str(time.time()) + "\\"
 RNN_LAYERS = [{'num_units': NUM_UNITS} for i in range(NUM_CELLS)]
 DENSE_LAYERS = [N]
-TRAINING_STEPS = 1000
+TRAINING_STEPS = int(80000000)
 PRINT_STEPS = TRAINING_STEPS / 10
-BATCH_SIZE = 500
-EEG_STATE_SIZE = 50
+BATCH_SIZE = 100
+EEG_STATE_SIZE = 4
 TRAINING_SAMPLES = 10000
-TRAIN_LOOP_ROLLOVER = TRAINING_SAMPLES-BATCH_SIZE-1
+
+#TODO add restore latest feature
+LOAD_CKPT = False
+path_to_restore = 'C:\\Users\\marzipan\\workspace\\MartianBCI\\MartianBCI\\Logs\\LSTMRegressor_Model0\\1499896611.7702782\\model.ckpt-9999'
 
 # Build NN
-input_x = tf.placeholder(dtype=tf.float32, shape=[None, TIMESTEPS, N + EEG_STATE_SIZE], name="Features")
+input_x = tf.placeholder(dtype=tf.float32, shape=[None, TIMESTEPS, 0 + EEG_STATE_SIZE], name="Features")
 input_y = tf.placeholder(dtype=tf.float32, shape=[None, N], name="Labels")
 
 # RNN Cell Ops
@@ -80,6 +82,9 @@ tf.summary.scalar('prediction', prediction[0])
 
 # Create the gradient descent optimizer with the given learning rate.
 optimizer = tf.train.RMSPropOptimizer(learning_rate=LEARNING_RATE, centered=False, decay=0.8)
+#TODO add learning rate print out during run
+#TODO look inside with tensorboard (no more trial and error, except when done systematically...)
+#optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE)
 
 # Create a variable to track the global step.
 global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -87,7 +92,6 @@ global_step = tf.Variable(0, name='global_step', trainable=False)
 # Use the optimizer to apply the gradients that minimize the loss
 # (and also increment the global step counter) as a single training step.
 train_op = optimizer.minimize(loss, global_step=global_step)
-
 
 # Add the variable initializer Op.
 init = tf.global_variables_initializer()
@@ -98,24 +102,41 @@ saver = tf.train.Saver()
 # Create a session for running Ops on the Graph.
 sess = tf.Session()
 
+if LOAD_CKPT:
+    # Restore code
+    saver.restore(sess,  path_to_restore)
+else:
+    # Run the Op to initialize the variables.
+    #init = tf.initialize_variables([train_op])
+    sess.run(init)
+
+# Weights
+#==============================================================================
+# bw_act = list()
+# b_w = dict()
+# for i in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES):
+#     b_w.update({i.name: sess.run(i)})
+# bw_act.append(b_w)
+#==============================================================================
+
+
 # Create the summary writer
 summary_writer = tf.summary.FileWriter(LOG_DIR, sess.graph)
 summary = tf.summary.merge_all()
 
-# Run the Op to initialize the variables.
-sess.run(init)
-
-        
 # Train / Update Model
 
-X, y = generate_data(protocol_1_follow_beta, [i for i in range(TRAINING_SAMPLES)], TIMESTEPS, seperate=True, non_gen=False)
+X, y = generate_data(protocol_1_generator, [i for i in range(TRAINING_SAMPLES)], TIMESTEPS, seperate=True, non_gen=False)
 for k in X.keys():
-    X[k] = np.squeeze(X[k])
+    X[k] = np.squeeze(X[k], axis=1)
     y[k] = y[k].astype(np.int32)
 
 durations = list()
 size_x = list()
 size_y = list()
+
+#TODO Modify the batch feeding so that new data is passed in each time!
+TRAIN_LOOP_ROLLOVER = int(len(X['train'])-BATCH_SIZE-1)
 for step in range(TRAINING_STEPS):
     x_train = X['train'][(step % TRAIN_LOOP_ROLLOVER): (step % TRAIN_LOOP_ROLLOVER) + BATCH_SIZE]
     y_train = y['train'][(step % TRAIN_LOOP_ROLLOVER): (step % TRAIN_LOOP_ROLLOVER) + BATCH_SIZE]
@@ -138,28 +159,11 @@ for step in range(TRAINING_STEPS):
         summary_writer.flush()
     
     # Save a checkpoint periodically.
-    if (step + 1) % 1000 == 0:
+    if (step + 1) % 10000 == 0:
         print("Saving checkpoint")
         checkpoint_file = LOG_DIR + 'model.ckpt'
-        saver.save(sess, checkpoint_file, global_step=step)
-    #        print("Checkpoint writing: ", time.time() - a)
-
-#==============================================================================
-# def predict(shift):
-#     x_pred = X['val'][shift:shift+1]
-#     y_pred = y['val'][shift:shift+1]
-#     feed_dict_training = {
-#             input_x : x_pred,
-#             input_y : y_pred
-#             }
-#     global lay, outy
-#     predictions, prediction_loss,lay,outy = sess.run([prediction, loss, multicellFinalState, cellOutputs],
-#                              feed_dict=feed_dict_training)
-#     print("Prediction_Loss: ", prediction_loss)  
-# 
-# 
-# for i in range(10): predict(i)
-#==============================================================================
+        ckpt_path = saver.save(sess, checkpoint_file, global_step=step)
+        print("Checkpoint writing: ", ckpt_path)
 
 feed_dict_training = {
         input_x : X['val'],
