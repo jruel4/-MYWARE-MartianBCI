@@ -48,37 +48,15 @@ G_NCHAN = 8
 pipeline = Pipeline(_BUF_LEN_SECS=0.004, _CHAN_SEL=list(range(G_NCHAN)), _SAMPLE_UPDATE_INTERVAL=1)
 pipeline.select_source()
 
-# Filter
-fir_block_0 = pipeline.add_block(
-        _BLOCK=block_fir,
-        _PARENT_UID="RAW",
-        _CHANNELS=8)
 
-# Add LSL output
-#==============================================================================
-# block_LSL0 = pipeline.add_block(
-#         _BLOCK=Block_LSL,
-#         _PARENT_UID=fir_block_0,
-#         _parent_output_key='filtered',
-#         stream_name='filtered_ts_0',
-#         stream_type='EEG')
-# 
-#==============================================================================
-block_LSL1 = pipeline.add_block(
-        _BLOCK=Block_LSL,
-        _PARENT_UID=fir_block_0,
-        _parent_output_key='filtered',
-        stream_name='raw_ts_0',
-        stream_type='EEG')
-
-
-# Spectrogram
+# RAW
 periodo_block1 = pipeline.add_block(
-        _BLOCK=block_periodogram,
-        _PARENT_UID=fir_block_0,
+        _BLOCK=block_periodogram_raw,
+        _PARENT_UID="RAW",
         _INPUT_SHAPE=G_InputShape,
         nfft=G_nFFT,
         window=G_Window)
+
 
 
 # Flatten spectrogram
@@ -93,7 +71,7 @@ block_LSL2 = pipeline.add_block(
         _BLOCK=Block_LSL,
         _PARENT_UID=periodo_block_flat1,
         _parent_output_key='reshape',
-        stream_name="FILT_" + G_PeriodoName,
+        stream_name="RAW_" + G_PeriodoName,
         stream_type='PROC')
 
 # Run
