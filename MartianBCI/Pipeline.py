@@ -243,7 +243,7 @@ class Pipeline:
             raise NoInputBlock("No input block selected")
         
         new_count = 0
-        buffer = deque(maxlen=self.mInbufLen)
+        buffer = deque(maxlen=self.mInbufLen) # buffer is (nsamples, nchan)
         while self.mRunThreadEvent.is_set():
             try:
                 new_data = np.asarray(self.mInQueue.get(block=True, timeout=1.0/self.mInlet.info().nominal_srate()))
@@ -258,8 +258,9 @@ class Pipeline:
                 This is where actual thread execution occurs
                 '''
                 a=time.time()
+                buffer_T = np.transpose(buffer) # buffer_T is nparray of shape (nchan, nsamples)
                 for start_uid in starting_block_uids:
-                    self._execute_block(start_uid, buffer)
+                    self._execute_block(start_uid, {'default':buffer_T})
                 self.mExecutionTimes.append(time.time() - a)
 
     def run(self):

@@ -6,50 +6,60 @@ Created on Sun Jul 16 23:32:28 2017
 """
 
 from scipy import signal
-from .Block import Block
 from Queue import deque
 import numpy as np
+
+if __name__ == "__main__":
+    from Block import Block
+else:
+    from .Block import Block
+
 
 class block_fir (Block):
     
     def __init__(self, _pipe, _CHANNELS):   
         self.mPipe = _pipe
+        self.mnChan = _CHANNELS
         
         self.n_taps = 250
+        self.mBufLen = self.n_taps
         self.fir_coeffs = signal.firwin(self.n_taps, [16.0, 20.0], pass_zero=False, nyq=125.0)
-        self.buf = deque([np.zeros([_CHANNELS]) for i in range(self.n_taps)], maxlen=self.n_taps)
-        self.once = True
         
         self.mBuf = np.zeros([_CHANNELS,self.n_taps])
         
-    def run(self, inbuf):
+        # Get input keys (not necessary)
+#        self.mInKeys = super(block_periodogram, self).get_input_keys(self.mPipe)
+
+        self.once = True
         
-        for i in range(len(inbuf)):
-            #remove the oldest value from the buffer
-            self.mBuf = np.delete(self.mBuf,0,1)
-            #and insert the next (& format input to be #chan x #samples)
-            _buf_in = np.asarray([[x] for x in inbuf.pop()])
-            self.mBuf = np.append(self.mBuf,_buf_in,1)        
+    def run(self, _buf):
+        buf = super(block_fir, self).get_default(_buf)
+        assert buf.shape[0] == self.mnChan, "Input dim-0 must be same as number of channels"
+        assert buf.shape[1] < self.mBufLen, "Input dim-1 must be less than buffer length"
+
+        in_len = buf.shape[1]
+
+        # shift buffer and add new data to the end
+        self.mBuf = np.roll(self.mBuf, -(in_len), 1)
+        self.mBuf[:,-(in_len):] = buf
+
+        self.mBufDotprod = np.dot(self.mBuf, self.fir_coeffs) #dot returns (nchan,), needs to be (nchan,nsamples), see next line
+        self.mBufDotprodRS = np.reshape(self.mBufDotprod, [self.mnChan,1]) # should break if not the correct shape
         
-#==============================================================================
-#         for i in range(len(inbuf)):
-#           if self.once:
-#               a=inbuf.pop()
-#               print a
-#               self.buf.append([[x] for x in a])
-#           else:
-#               self.buf.append([[x] for x in inbuf.pop()])
-#           print "\n\n\n"
-#==============================================================================
         if self.once:
-            print np.dot(self.fir_coeffs, np.transpose(self.mBuf)).shape
-            print np.asarray(self.mBuf).shape
-        self.once = False
-        return {'filtered':np.dot(self.fir_coeffs, np.transpose(self.mBuf))}
-#                'raw':np.asarray(np.transpose(self.mBuf))[-1,:]}
+            print
+            print "FIR, _buf shape: ", buf.shape
+            print "FIR, mBuf shape: ", self.mBuf.shape
+            print "FIR, fircoeffs shape: ", self.fir_coeffs.shape
+            print "FIR, mBuf dot producted shape: ", self.mBufDotprod.shape
+            print "FIR, dotprod shape: ", self.mBufDotprodRS.shape
+            print
+            self.once = False
+
+        return {'default': self.mBufDotprodRS }
     
     def get_output_struct(self):
-        return {'filtered':8}
+        return {'default':self.mnChan}
       
     def set_filter(self, f1, f2):
       self.fir_coeffs = signal.firwin(self.n_taps, [f1, f2], pass_zero=False, nyq=125.0)

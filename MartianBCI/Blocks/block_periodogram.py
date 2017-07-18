@@ -5,44 +5,69 @@ Created on Mon Jul 17 00:35:03 2017
 @author: marzipan
 """
 
-from .Block import Block
+from Block import Block
 import numpy as np
 from scipy import signal
 
 class block_periodogram (Block):
     
-    def __init__(self, _pipe, _INPUT_SHAPE, nfft=None, window=None):   
+    def __init__(self, _pipe, _NCHAN, _BUFLEN, nfft=None, window=None):   
         self.mPipe = _pipe
-        if nfft == None:
-            nfft = _INPUT_SHAPE[1] #length of input signal
-        elif nfft < _INPUT_SHAPE[1]:
-            raise Exception("nFFT must be equal to or greater than the number of input points")
+        self.mnChan = _NCHAN
+        self.mBufLen = _BUFLEN
 
-        self.mnFFT = nfft
+        # Number of fft points
+        if nfft is None:
+            self.mnFFT = _BUFLEN
+        elif nfft < _BUFLEN:
+            raise ValueError("nFFT must be equal to or greater than the number of input points")
+        else:
+            self.mnFFT = nfft
+            
+        # Assign window
+        if window is None:
+            self.mWindow = signal.tukey(_BUFLEN, 0.25)
+        else:
+            assert len(window) == _BUFLEN, "Window and buffer length must be the same size"
+            self.mWindow = window
         
-        #Create out input buffer
-        if not isinstance(_INPUT_SHAPE, list):
-            raise TypeError("Input shape must be of type list")
-        self.mInputShape = _INPUT_SHAPE
-        self.mBuf = np.zeros(self.mInputShape)
-       
-        self.mInKeys = None 
-       
+        # Input buffer
+        self.mBuf = np.zeros([_NCHAN, _BUFLEN])
+
+        # Get input keys (not necessary)
+#        self.mInKeys = super(block_periodogram, self).get_input_keys(self.mPipe)
+
+        self.once = True
+      
+    '''
+    Expects buf['default'] to be nparray, shape = (nchan, nsamples)
+    '''
     def run(self, _buf, test=False):
- 
-        if self.mInKeys == None:
-            self.mInKeys = super(block_periodogram, self).get_input_keys(self.mPipe)
-        buf = _buf[self.mInKeys[0]]
+        buf = super(block_periodogram, self).get_default(_buf)
+        assert buf.shape[0] == self.mnChan, "Input dim-0 must be same as number of channels"
+        assert buf.shape[1] < self.mBufLen, "Input dim-1 must be less than buffer length"
 
-        #remove the oldest value from the buffer
-        self.mBuf = np.delete(self.mBuf,0,1)
-        #and insert the next (& format input to be #chan x #samples)
-        self.mBuf = np.append(self.mBuf,np.transpose([buf]),1)
+        in_len = buf.shape[1]
 
+        # shift buffer and add new data to the end
+        self.mBuf = np.roll(self.mBuf, -(in_len), 1)
+        self.mBuf[:,-(in_len):] = buf
+        
+        # window and fft
+        self.mBufWindowed = self.mBuf * self.mWindow
         fft = np.abs(np.fft.fft(self.mBuf, n=self.mnFFT))
-#        print("FFT: ", fft.shape)
-        return {'periodo':fft}
+
+        if self.once:
+            print
+            print "PER, _buf shape: ", buf.shape
+            print "PER, mBuf shape: ", self.mBuf.shape
+            print "PER, window shape: ", self.mWindow.shape
+            print "PER, windowed buf shape: ", self.mBufWindowed.shape
+            print "PER, fft (output) shape: ", fft.shape
+            print
+            self.once = False
+        
+        return {'default':fft}
         
     def get_output_struct(self):
-        return {'periodo':[self.mInputShape[0],self.mnFFT]}
-    
+        return {'default':[self.mnChan,self.mnFFT]}

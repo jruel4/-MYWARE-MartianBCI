@@ -22,7 +22,7 @@ import numpy as np
 
 #GLOBALS
 G_FS = 250
-G_SIGLEN = 500
+G_SIGLEN = 100
 G_NCHAN = 8
 
 # Periodogram parameters
@@ -37,13 +37,6 @@ G_PeriodoShape = np.abs(np.fft.fft(np.zeros(G_InputShape), n=G_nFFT)).shape
 
 # Generate Periodogram stream name (include info about periodo)
 G_PeriodoName='PeriodoFlat_' + str(G_PeriodoShape[0]) + 'x' + str(G_PeriodoShape[1]) + '_' + str(np.prod(G_PeriodoShape))
-
-
-
-#GLOBALS
-G_FS = 250
-G_SIGLEN = 1000
-G_NCHAN = 8
 
 pipeline = Pipeline(_BUF_LEN_SECS=0.004, _CHAN_SEL=list(range(G_NCHAN)), _SAMPLE_UPDATE_INTERVAL=1)
 pipeline.select_source()
@@ -67,7 +60,7 @@ fir_block_0 = pipeline.add_block(
 block_LSL1 = pipeline.add_block(
         _BLOCK=Block_LSL,
         _PARENT_UID=fir_block_0,
-        _parent_output_key='filtered',
+        _parent_output_key='default',
         stream_name='raw_ts_0',
         stream_type='EEG')
 
@@ -76,7 +69,8 @@ block_LSL1 = pipeline.add_block(
 periodo_block1 = pipeline.add_block(
         _BLOCK=block_periodogram,
         _PARENT_UID=fir_block_0,
-        _INPUT_SHAPE=G_InputShape,
+        _NCHAN=G_NCHAN,
+        _BUFLEN=G_SIGLEN,
         nfft=G_nFFT,
         window=G_Window)
 
@@ -92,7 +86,7 @@ periodo_block_flat1 = pipeline.add_block(
 block_LSL2 = pipeline.add_block(
         _BLOCK=Block_LSL,
         _PARENT_UID=periodo_block_flat1,
-        _parent_output_key='reshape',
+        _parent_output_key='default',
         stream_name="FILT_" + G_PeriodoName,
         stream_type='PROC')
 

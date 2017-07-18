@@ -26,8 +26,11 @@ class Block (object):
             self.mInputKeys = list(pipeline.mBlocks[self.mParentUID]['func'].get_output_struct().keys())
     
     
-    def run(self):
+    def run(self,_buf):
         raise NotImplementedError( "Blocks must implement run() method." )
+    
+    def get_default(self, _buf):
+        return _buf['default']
     
     def get_output_struct(self):
         raise NotImplementedError( "Blocks must implement get_output_dim() method." )

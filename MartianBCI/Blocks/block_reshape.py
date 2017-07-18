@@ -24,19 +24,25 @@ class block_reshape (Block):
         self.mInputShape = _INPUT_SHAPE
         self.mOutputShape = _OUTPUT_SHAPE
 
-        
-        self.mInKeys = None
+#        self.mInKeys = super(block_reshape, self).get_input_keys(self.mPipe)
+
+        self.once = True
         
     def run(self, _buf, test=False):
-        
-        if self.mInKeys == None:
-            self.mInKeys = super(block_reshape, self).get_input_keys(self.mPipe)
-        buf = np.asarray(_buf[self.mInKeys[0]])
-        return {'reshape':np.reshape(buf, self.mOutputShape)}
+        buf = super(block_reshape, self).get_default(_buf)
+        assert buf.shape == self.mInputShape, "Buffer input shape must match the input shape specified when creating reshape block"
+        outbuf = np.reshape(buf, self.mOutputShape)
+        if self.once:
+            print
+            print "RS, _buf shape: ", buf.shape
+            print "RS, _buf reshape (output) shape: ", outbuf.shape
+            print
+            self.once = False
+        return {'default':outbuf}
     
     def get_output_struct(self):
-        print('reshape ',int(np.multiply.reduce(self.mInputShape)))
-        return {'reshape':int(np.multiply.reduce(self.mInputShape))}
+        print('RS, shape: ',int(np.multiply.reduce(self.mInputShape)))
+        return {'default':int(np.multiply.reduce(self.mInputShape))}
     
     
     
