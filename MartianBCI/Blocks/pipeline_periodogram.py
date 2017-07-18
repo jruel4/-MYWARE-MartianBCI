@@ -53,7 +53,8 @@ pipeline.select_source()
 periodo_block0 = pipeline.add_block(
         _BLOCK=block_periodogram,
         _PARENT_UID="RAW",
-        _INPUT_SHAPE=G_InputShape,
+        _NCHAN=G_NCHAN,
+        _BUFLEN=G_SIGLEN,
         nfft=G_nFFT,
         window=G_Window)
 
@@ -68,7 +69,7 @@ periodo_block_flat0 = pipeline.add_block(
 block_LSL0 = pipeline.add_block(
         _BLOCK=Block_LSL,
         _PARENT_UID=periodo_block_flat0,
-        _parent_output_key='reshape',
+        _parent_output_key='default',
         stream_name=G_PeriodoName,
         stream_type='PROC')
 

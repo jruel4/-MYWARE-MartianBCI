@@ -36,7 +36,8 @@ G_SIGLEN = 500
 G_NCHAN = 8
 
 #Morlet frequencies
-G_Freqs = np.arange(8,30,0.1)
+#G_Freqs = np.arange(8,14,1)
+G_Freqs = np.asarray([10,15,20,25])
 G_FreqsFWHM = [(f,2) for f in G_Freqs]
 
 # Periodogram shape variables

@@ -18,7 +18,7 @@ class block_noise_reject (Block):
     def __init__(self, _pipe):   
         self.mPipe = _pipe
         
-        self.EPOCH_LEN = 250
+        self.EPOCH_LEN = 500
         self.NUM_CHAN = 8
         self.NUM_SAMPLES_IN = 1
         self.NOISE_THRESH = 150e-6 # Volts
@@ -59,8 +59,7 @@ class block_noise_reject (Block):
       
 
     
-a = block_noise_reject(None)
-fd = np.transpose([[1,1,1,1,1,1,1,1e15]])
-
-r = a.run({'default':fd})
+#a = block_noise_reject(None)
+#fd = np.transpose([[1,1,1,1,1,1,1,1e15]])
+#r = a.run({'default':fd})
     

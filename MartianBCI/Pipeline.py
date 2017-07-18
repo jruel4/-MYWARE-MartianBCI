@@ -174,7 +174,7 @@ class Pipeline:
     def select_source(self):
         streams = resolve_stream()
         for i,s in enumerate(streams):
-            print(i,s.name())
+            print(i,s.name(),s.uid())
         stream_id = input("Input desired stream id: ")
         inlet = StreamInlet(streams[int(stream_id)])
         self.set_source(inlet)

@@ -26,7 +26,7 @@ class block_morlet (Block):
         self.mPipe = _pipe
         
         self.NUM_CHAN = 8
-        self.EPOCH_LEN = 250
+        self.EPOCH_LEN = 500
         # create wavelet 
         self.wavelets_mat = np.asarray([make_morlet(f,fwhm,M=self.EPOCH_LEN) for f,fwhm in f_fwhm]).transpose()
         self.num_freqs = len(f_fwhm)
