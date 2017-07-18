@@ -23,13 +23,16 @@ from collections import deque
 
 class block_normalize_periodogram (Block):
     
-    def __init__(self, _pipe, _num_freqs, _num_chan=8):  
+    def __init__(self, _pipe, _num_freqs, _num_chan=8, continuous_baseline=False):  
         '''
         Log normalize against moving average.
         '''
+        self.srate = 250.0
+        self.continuous_baseline = continuous_baseline
+        self.baseline_sample_count = 0
         self.NUM_FREQS = _num_freqs
         self.NUM_CHAN = _num_chan
-        self.BASE_LINE_PERIOD_DURATION = 10 * 250 # duration x time srate
+        self.BASE_LINE_PERIOD_DURATION = int(10 * self.srate) # duration x time srate
         self.mPipe = _pipe
         self.buf = deque([np.zeros((self.NUM_CHAN, self.NUM_FREQS)) for i in range(self.BASE_LINE_PERIOD_DURATION)], self.BASE_LINE_PERIOD_DURATION)
         
@@ -38,8 +41,13 @@ class block_normalize_periodogram (Block):
         inbuf = _buf['default']
         assert inbuf.shape == (self.NUM_CHAN, self.NUM_FREQS)
 
-        # add inbuf to loca buf
-        self.buf.append(inbuf)
+        # add inbuf to local buf 
+        if self.continuous_baseline or (self.baseline_sample_count < self.BASE_LINE_PERIOD_DURATION):
+            self.baseline_sample_count += 1
+            self.buf.append(inbuf)
+            
+            if not self.continuous_baseline and (self.baseline_sample_count == self.BASE_LINE_PERIOD_DURATION):
+                print ("NOTE: Baseline recording completed.")
         
         # convert to 3d array
         d = np.asarray(self.buf)
@@ -69,6 +77,10 @@ class block_normalize_periodogram (Block):
     def get_output_struct(self):
         return {'default' : (self.NUM_CHAN,self.num_freqs)}
     
+    def record_baseline(self, duration_seconds=10):
+        
+        self.BASE_LINE_PERIOD_DURATION = int(duration_seconds * self.srate)
+        
 
 if __name__ == '__main__':
     
