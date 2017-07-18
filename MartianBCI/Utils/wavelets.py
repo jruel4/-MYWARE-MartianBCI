@@ -8,7 +8,7 @@ Created on Mon Jul 17 19:31:23 2017
 
 from scipy import signal
 import numpy as np
-
+from matplotlib import pyplot as plt
 
 fwhm_dict = {2:.6,
              4:1.0,
@@ -44,11 +44,13 @@ def calc_fwhm(x):
   #print("confirm f: ",freqs[amax])
   hmax = fft[amax]/2.0
   fft -= hmax   
-  amin = np.argmin(abs(fft))  
-  fwhm = abs(freqs[amax] - freqs[amin])*2  
+  m1,m2 = np.argsort(np.abs(fft))[:2]
+  fwhm = abs(freqs[m1] - freqs[m2])
   return fwhm
-  
 
-
-
+def test():
+  b = make_morlet(12, 2)
+  print(calc_fwhm(b))
+  plt.plot(b)
+  return b   
 
