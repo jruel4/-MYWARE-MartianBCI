@@ -78,8 +78,9 @@ class block_normalize_periodogram (Block):
         return {'default' : (self.NUM_CHAN,self.num_freqs)}
     
     def record_baseline(self, duration_seconds=10):
-        
         self.BASE_LINE_PERIOD_DURATION = int(duration_seconds * self.srate)
+        self.baseline_sample_count = 0
+        print("NOTE: Recording baseline...")
         
 
 if __name__ == '__main__':
