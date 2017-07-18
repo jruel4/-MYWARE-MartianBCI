@@ -15,10 +15,14 @@ from MartianBCI.Utils.wavelets import make_morlet
 
 class block_morlet (Block):
     
-    def __init__(self, _pipe, f_fwhm=[(12,4)]):  
+    def __init__(self, _pipe, f_fwhm=None):  
         '''
         f_fwhm is a list of tuples where each tuple is (frequency, full-width-half-max)
         '''
+
+        if not f_fwhm:
+            f_fwhm = [(f,4) for f in np.arange(8,30,2)]
+        
         self.mPipe = _pipe
         
         self.NUM_CHAN = 8
@@ -28,22 +32,20 @@ class block_morlet (Block):
         self.num_freqs = len(f_fwhm)
         assert self.wavelets_mat.shape == (self.EPOCH_LEN, self.num_freqs)
         
-    def run(self, inbuf):
-      #TODO process with super to parent
-      
-      # check input size
-      assert inbuf.shape == (self.NUM_CHAN, self.EPOCH_LEN)
-      power = np.abs(np.dot(inbuf, self.wavelets_mat)) # Volts
-      
-      return {'default':power}
+    def run(self, _buf):
+        
+        inbuf = _buf['data']
+        valid = _buf['valid']
+
+        # check input size
+        assert inbuf.shape == (self.NUM_CHAN, self.EPOCH_LEN)
+        power = np.abs(np.dot(inbuf, self.wavelets_mat)) # Volts
+
+
+        powers_bad_rm = np.asarray([1 if i else -1 for i in valid])[:,None] * power
+        
+        # Output is (nchan, nfreqs)
+        return {'default':powers_bad_rm}
       
     def get_output_struct(self):
         return {'default' : (self.NUM_CHAN,self.num_freqs)}
-      
-      
-      
-      
-      
-      
-      
-      

@@ -26,17 +26,16 @@ class block_noise_reject (Block):
         
         self._buf = deque([np.zeros(self.NUM_CHAN) for i in range(self.EPOCH_LEN)], maxlen=self.EPOCH_LEN)
         
-    def run(self, inbuf):
-      
-      #TODO Process inbuf with super method
+    def run(self, _buf):
+      inbuf = super(block_noise_reject, self).get_default(_buf)
+
       #TODO add smart check to ensure input is not already converted to Volts
       
       # Check input dimensions
-      d = np.asarray(inbuf)
-      assert d.shape == (self.NUM_CHAN, self.NUM_SAMPLES_IN)
+      assert inbuf.shape == (self.NUM_CHAN, self.NUM_SAMPLES_IN)
       
       # Split samples to add to buff
-      list_of_samples = d.transpose().tolist()
+      list_of_samples = inbuf.transpose().tolist()
       self._buf.extend(list_of_samples)
       
       # Convert deque to array
@@ -60,6 +59,8 @@ class block_noise_reject (Block):
       
 
     
-    
-    
+a = block_noise_reject(None)
+fd = np.transpose([[1,1,1,1,1,1,1,1e15]])
+
+r = a.run({'default':fd})
     
