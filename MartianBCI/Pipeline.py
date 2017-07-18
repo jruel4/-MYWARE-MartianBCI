@@ -170,7 +170,9 @@ class Pipeline:
         self.mBlocks.update(new_block)
 
         return block_uid
-        
+    def get_block_handle(self, _BLOCK_UID):
+        return self.mBlocks[_BLOCK_UID]['func']
+
     def select_source(self):
         streams = resolve_stream()
         for i,s in enumerate(streams):

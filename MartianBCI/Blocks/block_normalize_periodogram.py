@@ -68,6 +68,10 @@ class block_normalize_periodogram (Block):
         summed_data = np.sum(zerod_data, axis=0)
         avg = summed_data / Ns
         
+        if not self.continuous_baseline and (self.baseline_sample_count == self.BASE_LINE_PERIOD_DURATION):
+            print ( "Baseline avg: ", avg)
+            self.baseline_sample_count += 1
+        
         assert inbuf.shape == avg.shape
         
         decibel_power = 10 * np.log10(inbuf / avg)

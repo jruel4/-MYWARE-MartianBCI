@@ -26,9 +26,9 @@ import time
 from MartianBCI.Pipeline import Pipeline
 from MartianBCI.Blocks.Block_LSL import Block_LSL
 from MartianBCI.Blocks.block_morlet import block_morlet
-from MartianBCI.Blocks.block_noise_reject import block_noise_reject
 from MartianBCI.Blocks.block_reshape import block_reshape
-
+from MartianBCI.Blocks.block_noise_reject import block_noise_reject
+from MartianBCI.Blocks.block_normalize_periodogram import block_normalize_periodogram
 
 #GLOBALS
 G_FS = 250
@@ -36,8 +36,8 @@ G_SIGLEN = 500
 G_NCHAN = 8
 
 #Morlet frequencies
-#G_Freqs = np.arange(8,14,1)
-G_Freqs = np.asarray([10,15,20,25])
+G_Freqs = np.arange(8,14,1)
+#G_Freqs = np.asarray([10,15,20,25])
 G_FreqsFWHM = [(f,2) for f in G_Freqs]
 
 # Periodogram shape variables
@@ -61,6 +61,14 @@ morlet0 = pipeline.add_block(
         _PARENT_UID=noise_reject0,
         f_fwhm = G_FreqsFWHM)
 
+# Log baseline
+morlet_baseline0 = pipeline.add_block(
+        _BLOCK=block_normalize_periodogram,
+        _PARENT_UID=morlet0,
+        _num_freqs=len(G_Freqs),
+        _num_chan=G_NCHAN,
+        continuous_baseline=False)
+
 # Flatten morlet
 morlet_RS0 = pipeline.add_block(
         _BLOCK=block_reshape,
@@ -68,7 +76,14 @@ morlet_RS0 = pipeline.add_block(
         _INPUT_SHAPE=G_MorletOutputShape,
         _OUTPUT_SHAPE=[-1]) #make 1D
 
-# Add LSL output
+# Flatten morlet baselined
+morlet_baseline_RS0 = pipeline.add_block(
+        _BLOCK=block_reshape,
+        _PARENT_UID=morlet_baseline0,
+        _INPUT_SHAPE=G_MorletOutputShape,
+        _OUTPUT_SHAPE=[-1]) #make 1D
+
+# Add LSL output 0
 block_LSL0 = pipeline.add_block(
         _BLOCK=Block_LSL,
         _PARENT_UID=morlet_RS0,
@@ -76,5 +91,15 @@ block_LSL0 = pipeline.add_block(
         stream_name=G_MorletStreamName,
         stream_type='MORLET')
 
+# Add LSL output 1
+block_LSL1 = pipeline.add_block(
+        _BLOCK=Block_LSL,
+        _PARENT_UID=morlet_baseline_RS0,
+        _parent_output_key='default',
+        stream_name='NORM_' + G_MorletStreamName,
+        stream_type='MORLET')
+
 # Run
 pipeline.run()
+
+H_blinefunc = pipeline.get_block_handle(morlet_baseline0)
