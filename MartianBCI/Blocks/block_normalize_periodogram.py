@@ -23,17 +23,17 @@ from collections import deque
 
 class block_normalize_periodogram (Block):
     
-    def __init__(self, _pipe, _num_freqs):  
+    def __init__(self, _pipe, _num_freqs, _num_chan=8):  
         '''
         Log normalize against moving average.
         '''
         self.NUM_FREQS = _num_freqs
-        self.NUM_CHAN = 8
+        self.NUM_CHAN = _num_chan
         self.BASE_LINE_PERIOD_DURATION = 10 * 250 # duration x time srate
         self.mPipe = _pipe
         self.buf = deque([np.zeros((self.NUM_CHAN, self.NUM_FREQS)) for i in range(self.BASE_LINE_PERIOD_DURATION)], self.BASE_LINE_PERIOD_DURATION)
         
-    def run(self, _buf):
+    def run(self, _buf,debug=False):
         
         inbuf = _buf['default']
         assert inbuf.shape == (self.NUM_CHAN, self.NUM_FREQS)
@@ -45,8 +45,20 @@ class block_normalize_periodogram (Block):
         d = np.asarray(self.buf)
         assert d.shape == (self.BASE_LINE_PERIOD_DURATION, self.NUM_CHAN, self.NUM_FREQS), str(d.shape)
         
-        #TODO get average accross time for each frequency and electrode
-        avg = np.mean(d, axis=0)
+        # If power vals are zero, exclude them from average
+        
+        # First we need to count the number of zeros in each epoch
+        negatives = d < 0
+        negatives_sum = np.sum(negatives, axis=0)
+        Ns= (-1*negatives_sum) + self.BASE_LINE_PERIOD_DURATION
+        
+        # Now set negatives to zero by multiplying by zero or one
+        one_or_zero = (d >= 0) * 1.0
+        zerod_data = d * one_or_zero
+        
+        # Now calculate mean by summing and dividing by len - negative sum
+        summed_data = np.sum(zerod_data, axis=0)
+        avg = summed_data / Ns
         
         assert inbuf.shape == avg.shape
         
@@ -61,12 +73,16 @@ class block_normalize_periodogram (Block):
 if __name__ == '__main__':
     
     # input data should be num_chan x num_freq - power values
-    num_chan = 8
-    num_freq = 20
-    fake_data = np.arange(num_chan*num_freq).reshape((num_chan, num_freq))
+    num_chan = 2
+    num_freq = 2
     
-    b = block_normalize_periodogram(None, num_freq)
-    r = b.run({'default':fake_data})
+    fake_data = np.asarray([[10e-6, 10e-6],[10e-6, 10e-6]])
+    b = block_normalize_periodogram(None, num_freq, _num_chan=num_chan)
+    # fill up buffer
+    for i in range(b.BASE_LINE_PERIOD_DURATION): b.run({'default':fake_data})
+    fake_data = np.asarray([[11e-6, 12e-6],[13e-6, 30e-6]])
+    r = b.run({'default':fake_data},debug=True)
+    
     assert r['default'].shape == (num_chan, num_freq)
     print(r)
     
