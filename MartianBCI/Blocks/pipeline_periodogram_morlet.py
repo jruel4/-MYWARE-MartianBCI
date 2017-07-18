@@ -19,8 +19,8 @@ Created on Sun Jul 16 23:39:34 2017
 @author: marzipan
 """
 
-from scipy import signal
 import numpy as np
+import time
 
 # Pipeline blocks
 from MartianBCI.Pipeline import Pipeline
@@ -35,53 +35,45 @@ G_FS = 250
 G_SIGLEN = 500
 G_NCHAN = 8
 
-# Periodogram parameters
-G_nFFT = 500
-G_Window = signal.tukey(G_SIGLEN,0.25)
+#Morlet frequencies
+G_Freqs = np.arange(8,30,0.1)
+G_FreqsFWHM = [(f,2) for f in G_Freqs]
 
 # Periodogram shape variables
-G_InputShape = [G_NCHAN, G_SIGLEN]
+G_MorletOutputShape = (G_NCHAN, len(G_Freqs))
 
-# Creates np zeros in the shape of the input, call fft and get shape
-G_PeriodoShape = np.abs(np.fft.fft(np.zeros(G_InputShape), n=G_nFFT)).shape
+# Stream name
+G_MorletStreamName = "Morlet_" + str(G_MorletOutputShape[0]) + 'x' + str(G_MorletOutputShape[1]) + '_' + str(np.prod(G_MorletOutputShape)) + time.strftime("_%H:%M:%S")
 
-# Generate Periodogram stream name (include info about periodo)
-G_PeriodoName='PeriodoFlat_' + str(G_PeriodoShape[0]) + 'x' + str(G_PeriodoShape[1]) + '_' + str(np.prod(G_PeriodoShape))
 
 pipeline = Pipeline(_BUF_LEN_SECS=0.004, _CHAN_SEL=list(range(G_NCHAN)), _SAMPLE_UPDATE_INTERVAL=1)
 pipeline.select_source()
 
+# Noise reject
+noise_reject0 = pipeline.add_block(
+        _BLOCK=block_noise_reject,
+        _PARENT_UID="RAW")
 
 # Morlet
-periodo_block0 = pipeline.add_block(
-        _BLOCK=block_periodogram,
-        _PARENT_UID="RAW",
-        _INPUT_SHAPE=G_InputShape,
-        nfft=G_nFFT,
-        window=G_Window)
+morlet0 = pipeline.add_block(
+        _BLOCK=block_morlet,
+        _PARENT_UID=noise_reject0,
+        f_fwhm = G_FreqsFWHM)
 
-# Spectrogram
-periodo_block0 = pipeline.add_block(
-        _BLOCK=block_periodogram,
-        _PARENT_UID="RAW",
-        _INPUT_SHAPE=G_InputShape,
-        nfft=G_nFFT,
-        window=G_Window)
-
-# Flatten spectrogram
-periodo_block_flat0 = pipeline.add_block(
+# Flatten morlet
+morlet_RS0 = pipeline.add_block(
         _BLOCK=block_reshape,
-        _PARENT_UID=periodo_block0,
-        _INPUT_SHAPE=G_PeriodoShape,
+        _PARENT_UID=morlet0,
+        _INPUT_SHAPE=G_MorletOutputShape,
         _OUTPUT_SHAPE=[-1]) #make 1D
 
 # Add LSL output
 block_LSL0 = pipeline.add_block(
         _BLOCK=Block_LSL,
-        _PARENT_UID=periodo_block_flat0,
-        _parent_output_key='reshape',
-        stream_name=G_PeriodoName,
-        stream_type='PROC')
+        _PARENT_UID=morlet_RS0,
+        _parent_output_key='default',
+        stream_name=G_MorletStreamName,
+        stream_type='MORLET')
 
 # Run
 pipeline.run()

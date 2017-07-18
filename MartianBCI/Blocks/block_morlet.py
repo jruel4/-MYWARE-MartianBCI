@@ -48,4 +48,5 @@ class block_morlet (Block):
         return {'default':powers_bad_rm}
       
     def get_output_struct(self):
+        print "MOR: Output ", self.NUM_CHAN, "x", self.num_freqs
         return {'default' : (self.NUM_CHAN,self.num_freqs)}
