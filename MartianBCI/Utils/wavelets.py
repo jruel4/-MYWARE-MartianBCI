@@ -22,18 +22,25 @@ def calc_w(f, s,M=250.0):
   w = f/2.0/srate*M/s
   return w
 
-def make_morlet(f,fwhm=4,srate=250.0,M=250.0):
+def make_morlet(f,fwhm=4,srate=250.0,M=250.0,s=None, debug=False, norm=None):
   '''
   fwhm = full width half max in hz, must be 2, 4 or 6.
   '''
-  s = fwhm_dict[fwhm]
+  
+  if not s:
+      s = fwhm_dict[fwhm]
+      
   # create wavelet 
   srate = 250.0  
   w = calc_w(f,s,M=M)  
   f = 2.0*s*w*srate/M
   #print("morlet freq: ",f)
   bm = signal.morlet(M, w=w, s=s, complete=True)
-  bm /= sum(np.abs(bm))    
+  if debug: print("raw norm: ",sum(np.abs(bm)), np.linalg.norm(bm))
+  if norm:
+      bm /= norm
+  else:
+      bm /= (10.0/s) 
   return bm
 
 def calc_fwhm(x):

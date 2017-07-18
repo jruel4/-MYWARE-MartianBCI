@@ -57,7 +57,7 @@ class block_peak_alpha (Block):
         iafp *= np.asarray([1 if i else -1 for i in valid])
         
         # Output is (nchan, nfreqs)
-        return {'peak_alpha_freq':iaf, 'peak_alpha_power':iafp}
+        return {'peak_alpha_freq':iaf[:,None], 'peak_alpha_power':iafp[:,None]}
       
     def get_output_struct(self):
         return {'peak_alpha_freq' : (self.NUM_CHAN,1),
