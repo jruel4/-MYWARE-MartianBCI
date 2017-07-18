@@ -30,7 +30,9 @@ class block_reshape (Block):
         
     def run(self, _buf, test=False):
         buf = super(block_reshape, self).get_default(_buf)
-        assert buf.shape == self.mInputShape, "Buffer input shape must match the input shape specified when creating reshape block"
+        assert buf.shape == self.mInputShape,\
+            "Buffer input shape must match the input shape specified when creating reshape block, got: " +\
+                str(buf.shape[0]) + "x" + str(buf.shape[1]) + " expected: " + str(self.mInputShape[0]) + "x" + str(self.mInputShape[1])
         outbuf = np.reshape(buf, self.mOutputShape)
         if self.once:
             print
