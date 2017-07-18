@@ -8,10 +8,6 @@ Created on Mon Jul 17 23:34:52 2017
 
 '''
 
-Automatic graph scaling
-
-Insight into magnitudes
-
 Make test data with proper untits / scaling
 
 Make lsl recorder in our gui?
