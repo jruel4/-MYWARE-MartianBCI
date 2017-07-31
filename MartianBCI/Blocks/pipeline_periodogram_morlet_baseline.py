@@ -28,6 +28,7 @@ from MartianBCI.Blocks.Block_LSL import Block_LSL
 from MartianBCI.Blocks.block_morlet import block_morlet
 from MartianBCI.Blocks.block_reshape import block_reshape
 from MartianBCI.Blocks.block_noise_reject import block_noise_reject
+from MartianBCI.Blocks.block_normalize_periodogram import block_normalize_periodogram
 
 #GLOBALS
 G_FS = 250
@@ -45,7 +46,6 @@ G_MorletOutputShape = (G_NCHAN, len(G_Freqs))
 # Stream name
 G_MorletStreamName = "Morlet_" + str(G_MorletOutputShape[0]) + 'x' + str(G_MorletOutputShape[1]) + '_' + str(np.prod(G_MorletOutputShape)) + time.strftime("_%H:%M:%S")
 
-
 pipeline = Pipeline(_BUF_LEN_SECS=0.004, _CHAN_SEL=list(range(G_NCHAN)), _SAMPLE_UPDATE_INTERVAL=1)
 pipeline.select_source()
 
@@ -60,19 +60,27 @@ morlet0 = pipeline.add_block(
         _PARENT_UID=noise_reject0,
         f_fwhm = G_FreqsFWHM)
 
-# Flatten morlet
-morlet_RS0 = pipeline.add_block(
-        _BLOCK=block_reshape,
+# Log baseline
+morlet_baseline0 = pipeline.add_block(
+        _BLOCK=block_normalize_periodogram,
         _PARENT_UID=morlet0,
+        _num_freqs=len(G_Freqs),
+        _num_chan=G_NCHAN,
+        continuous_baseline=False)
+
+# Flatten morlet baselined
+morlet_baseline_RS0 = pipeline.add_block(
+        _BLOCK=block_reshape,
+        _PARENT_UID=morlet_baseline0,
         _INPUT_SHAPE=G_MorletOutputShape,
         _OUTPUT_SHAPE=[-1]) #make 1D
 
 # Add LSL output 0
 block_LSL0 = pipeline.add_block(
         _BLOCK=Block_LSL,
-        _PARENT_UID=morlet_RS0,
+        _PARENT_UID=morlet_baseline_RS0,
         _parent_output_key='default',
-        stream_name=G_MorletStreamName,
+        stream_name='NORM_' + G_MorletStreamName,
         stream_type='MORLET')
 
 # Run
