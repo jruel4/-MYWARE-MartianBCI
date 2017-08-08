@@ -42,7 +42,7 @@ G_SIGLEN = 500
 G_NCHAN = 8
 
 # Periodogram parameters
-G_nFFT = 2000
+G_nFFT = 250
 G_Window = signal.tukey(G_SIGLEN,0.5)
 
 G_RemoveDC = True

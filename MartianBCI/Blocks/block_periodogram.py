@@ -8,7 +8,6 @@ Created on Mon Jul 17 00:35:03 2017
 from Block import Block
 import numpy as np
 from scipy import signal
-from Utils.lsl_utils import create_sin
 
 class block_periodogram (Block):
     
@@ -80,7 +79,10 @@ class block_periodogram (Block):
         return {'default':[self.mnChan,self.mnFFT]}
         
 if __name__ == '__main__':
-    import pyqtgraph as pg 
+    import pyqtgraph as pg
+    from LSLUtils.Base import LSLUtils
+    
+    utils = LSLUtils()
     
     # input data should be num_chan x num_freq - power values
     nchan = 8
@@ -88,7 +90,7 @@ if __name__ == '__main__':
     nfft = 1000
 
     # Generate and plot fake data
-    fake_data = create_sin(length=1000,freqs=[8,12,20], amps=[1,5,2.5],nchan=8)
+    fake_data = utils.create_sin(length=1000,freqs=[8,12,20], amplitudes=[1,5,2.5],nchan=8)
     fake_data += np.ones_like(fake_data) * 1000 #dc offset
     pg.plot(fake_data[0,:])
 

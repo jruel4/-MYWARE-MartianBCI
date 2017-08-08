@@ -8,7 +8,6 @@ Created on Wed Jul 19 12:24:26 2017
 from Block import Block
 import numpy as np
 from scipy import signal
-from Utils.lsl_utils import create_sin
 
 class block_moving_average (Block):
     
@@ -102,6 +101,7 @@ class block_moving_average (Block):
 if __name__ == '__main__':
 
     import pyqtgraph as pg 
+    from Utils.lsl_utils import create_sin
 
     win = pg.GraphicsWindow(title="Plot auto-range examples")
     win.resize(800,600)
@@ -113,7 +113,7 @@ if __name__ == '__main__':
     ma_len = 50
 
     # Generate and plot fake data
-    fake_data = create_sin(length=buflen,freqs=[5], amps=[1],nchan=8)
+    fake_data = create_sin(length=buflen,freqs=[5], amplitudes=[1],nchan=8)
     fake_data[:,50:150] = -2
     fake_data += 1
     p1.plot(fake_data[0,:],title="Fake data, raw, 5Hz")
