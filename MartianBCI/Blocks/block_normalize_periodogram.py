@@ -74,7 +74,12 @@ class block_normalize_periodogram (Block):
         
         assert inbuf.shape == avg.shape
         
-        divisive = inbuf / avg
+        # Check for div by 0 error here
+        if not avg or avg == 0.0:
+            divisive = inbuf
+        else:
+            divisive = inbuf / avg
+
 #        decibel_power = 10 * np.log10(inbuf / avg)
 
         return {'default':divisive}

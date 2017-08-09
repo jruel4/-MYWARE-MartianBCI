@@ -78,7 +78,7 @@ morlet0 = pipeline.add_block(
 #     _OUTPUT_SHAPE=[8,30] )
 #==============================================================================
 
-# Log baseline
+# Divisive baseline
 morlet_baseline0 = pipeline.add_block(
         _BLOCK=block_normalize_periodogram,
         _PARENT_UID=morlet0,
@@ -86,20 +86,18 @@ morlet_baseline0 = pipeline.add_block(
         _num_chan=G_MorletOutputShape[0],
         continuous_baseline=False)
 
-#==============================================================================
-# # Moving average
-# ma_block0 = pipeline.add_block(
-#         _BLOCK=block_moving_average,
-#         _PARENT_UID=morlet_baseline0,
-#         _NCHAN=G_MorletOutputShape[0],
-#         _NFREQS =G_MorletOutputShape[1],
-#         _MA_LEN=250 )
-#==============================================================================
+# Moving average
+ma_block0 = pipeline.add_block(
+        _BLOCK=block_moving_average,
+        _PARENT_UID=morlet_baseline0,
+        _NCHAN=G_MorletOutputShape[0],
+        _NFREQS =G_MorletOutputShape[1],
+        _MA_LEN=250 )
 
 # Flatten morlet
 morlet_RS0 = pipeline.add_block(
         _BLOCK=block_reshape,
-        _PARENT_UID=morlet_baseline0,
+        _PARENT_UID=ma_block0,
         _INPUT_SHAPE=G_MorletOutputShape,
         _OUTPUT_SHAPE=[-1]) #make 1D
 
@@ -114,7 +112,13 @@ block_LSL0 = pipeline.add_block(
 
 
 def bslice(v):
-    return lambda x, idx=v: x[idx]
+    try:
+        # try and iterate through v (if, for example, we're being passed a list)
+        iter(v)
+        return lambda x, indexes=v: np.sum([x[idx] for idx in indexes])
+    except TypeError:
+        # else assume it's a scalar
+        return lambda x, idx=v: x[idx]
 
 
 
@@ -122,64 +126,28 @@ main = [ pipeline.add_block( _BLOCK=block_lambda, _PARENT_UID=morlet_RS0, _LAMBD
 energy = [ pipeline.add_block( _BLOCK=block_lambda, _PARENT_UID=morlet_RS0, _LAMBDA_FUNC = bslice(9 + x*29), _OUTPUT_SHAPE=1 ) for x in range(8) ] +  [ pipeline.add_block( _BLOCK=block_lambda, _PARENT_UID=morlet_RS0, _LAMBDA_FUNC = bslice(8 + x*30), _OUTPUT_SHAPE=1 ) for x in range(2) ]
 fatigue = [ pipeline.add_block( _BLOCK=block_lambda, _PARENT_UID=morlet_RS0, _LAMBDA_FUNC = bslice(13 + x*29), _OUTPUT_SHAPE=1 ) for x in range(8) ] +  [ pipeline.add_block( _BLOCK=block_lambda, _PARENT_UID=morlet_RS0, _LAMBDA_FUNC = bslice(8 + x*30), _OUTPUT_SHAPE=1 ) for x in range(2) ]
 stress = [ pipeline.add_block( _BLOCK=block_lambda, _PARENT_UID=morlet_RS0, _LAMBDA_FUNC = bslice(17 + x*29), _OUTPUT_SHAPE=1 ) for x in range(8) ] +  [ pipeline.add_block( _BLOCK=block_lambda, _PARENT_UID=morlet_RS0, _LAMBDA_FUNC = bslice(8 + x*30), _OUTPUT_SHAPE=1 ) for x in range(2) ]
-cognitiveload = [ pipeline.add_block( _BLOCK=block_lambda, _PARENT_UID=morlet_RS0, _LAMBDA_FUNC = bslice(21 + x*29), _OUTPUT_SHAPE=1 ) for x in range(8) ] +  [ pipeline.add_block( _BLOCK=block_lambda, _PARENT_UID=morlet_RS0, _LAMBDA_FUNC = bslice(8 + x*30), _OUTPUT_SHAPE=1 ) for x in range(2) ]
+cog = [ pipeline.add_block( _BLOCK=block_lambda, _PARENT_UID=morlet_RS0, _LAMBDA_FUNC = bslice(21 + x*29), _OUTPUT_SHAPE=1 ) for x in range(8) ] +  [ pipeline.add_block( _BLOCK=block_lambda, _PARENT_UID=morlet_RS0, _LAMBDA_FUNC = bslice(8 + x*30), _OUTPUT_SHAPE=1 ) for x in range(2) ]
 
 emot = [ pipeline.add_block( _BLOCK=block_lambda, _PARENT_UID=morlet_RS0, _LAMBDA_FUNC = bslice(x+29*5), _OUTPUT_SHAPE=1 ) for x in range(10,20)]
 
 # Add LSL outlet blocks
-lsl_outputs = [
-pipeline.add_block(
-        _BLOCK=Block_LSL,
-        _PARENT_UID=main[i],
-        _parent_output_key='default',
-        stream_name="Main" + str(i),
-        stream_type='PROC')
-for i in range(10)
-] + [
-pipeline.add_block(
-        _BLOCK=Block_LSL,
-        _PARENT_UID=energy[i],
-        _parent_output_key='default',
-        stream_name="Energy" + str(i),
-        stream_type='PROC')
-for i in range(10)
-] + [
-pipeline.add_block(
-        _BLOCK=Block_LSL,
-        _PARENT_UID=fatigue[i],
-        _parent_output_key='default',
-        stream_name="Fatigue" + str(i),
-        stream_type='PROC')
-for i in range(10)
-] + [
-pipeline.add_block(
-        _BLOCK=Block_LSL,
-        _PARENT_UID=stress[i],
-        _parent_output_key='default',
-        stream_name="Stress" + str(i),
-        stream_type='PROC')
-for i in range(10)
-] + [
-pipeline.add_block(
-        _BLOCK=Block_LSL,
-        _PARENT_UID=cognitiveload[i],
-        _parent_output_key='default',
-        stream_name="CognitiveLoad" + str(i),
-        stream_type='PROC')
-for i in range(10)
-] + [
-pipeline.add_block(
-        _BLOCK=Block_LSL,
-        _PARENT_UID=emot[i],
-        _parent_output_key='default',
-        stream_name="EmotionalValence" + str(i),
-        stream_type='PROC')
-for i in range(10)
-]
+'''
+Note, we expect lists main, energy, fatigue, stress, cognitiveload, and emot to all have been filled
+with blocks that output a single value (which must still be in the form of a one element list, because of LSL)
+'''
+lsl_outlet_prefixes = ["Main", "Energy", "Fatigue", "Stress", "CognitiveLoad", "EmotionalValence"]
+lsl_outputs = \
+  [pipeline.add_block( _BLOCK=Block_LSL, _PARENT_UID=main[i],       _parent_output_key='default', stream_name=lsl_outlet_prefixes[0] + str(i), stream_type='NEUROMON') for i in range(10) ] \
++ [pipeline.add_block( _BLOCK=Block_LSL, _PARENT_UID=energy[i],     _parent_output_key='default', stream_name=lsl_outlet_prefixes[1] + str(i), stream_type='NEUROMON') for i in range(10) ] \
++ [pipeline.add_block( _BLOCK=Block_LSL, _PARENT_UID=fatigue[i],    _parent_output_key='default', stream_name=lsl_outlet_prefixes[2] + str(i), stream_type='NEUROMON') for i in range(10) ] \
++ [pipeline.add_block( _BLOCK=Block_LSL, _PARENT_UID=stress[i],     _parent_output_key='default', stream_name=lsl_outlet_prefixes[3] + str(i), stream_type='NEUROMON') for i in range(10) ] \
++ [pipeline.add_block( _BLOCK=Block_LSL, _PARENT_UID=cog[i],        _parent_output_key='default', stream_name=lsl_outlet_prefixes[4] + str(i), stream_type='NEUROMON') for i in range(10) ] \
++ [pipeline.add_block( _BLOCK=Block_LSL, _PARENT_UID=emot[i],       _parent_output_key='default', stream_name=lsl_outlet_prefixes[5] + str(i), stream_type='NEUROMON') for i in range(10) ]
 
 # Run
 pipeline.run()
 
+print("Baselining, stay still...")
 # Record baseline: 
 #H_blinefunc = pipeline.get_block_handle(morlet_baseline0)
-#H_blinefunc.record_baseline(duration_seconds=30)
+#H_blinefunc.record_baseline(duration_seconds=10)
