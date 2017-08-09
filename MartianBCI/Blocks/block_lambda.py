@@ -36,7 +36,7 @@ class block_lambda (Block):
             print "LAM, outbuf: ", outbuf
             print
             self.once = False
-        return {'default':[outbuf]}
+        return {'default':np.asarray([outbuf])}
     
     def get_output_struct(self):
         print('LAM, shape: ',self.mOutputShape)

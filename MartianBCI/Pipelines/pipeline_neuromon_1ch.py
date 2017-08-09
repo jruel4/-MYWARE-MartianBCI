@@ -31,6 +31,7 @@ from MartianBCI.Pipeline import Pipeline
 from MartianBCI.Blocks.Block_LSL import Block_LSL
 from MartianBCI.Blocks.block_periodogram import block_periodogram
 from MartianBCI.Blocks.block_moving_average import block_moving_average
+from MartianBCI.Blocks.block_normalize_periodogram import block_normalize_periodogram
 from MartianBCI.Blocks.block_reshape import block_reshape
 from MartianBCI.Blocks.block_lambda import block_lambda
 
@@ -63,10 +64,20 @@ G_PeriodoName='Main'
 pipeline = Pipeline(_BUF_LEN_SECS=0.004, _CHAN_SEL=list(range(G_NCHAN)), _SAMPLE_UPDATE_INTERVAL=1)
 pipeline.select_source()
 
+
+
+
+# Convert to uV
+conv2 = pipeline.add_block(
+    _BLOCK=block_lambda,
+    _PARENT_UID="RAW",
+    _LAMBDA_FUNC = lambda x: np.asarray(x) * ( ( (4.5/ (2**23 - 1)) / 24) * 1e6),
+    _OUTPUT_SHAPE=1 )
+
 # Spectrogram
 periodo_block0 = pipeline.add_block(
         _BLOCK=block_periodogram,
-        _PARENT_UID="RAW",
+        _PARENT_UID=conv2,
         _NCHAN=G_NCHAN,
         _BUFLEN=G_SIGLEN,
         remove_dc=G_RemoveDC,
@@ -88,6 +99,16 @@ periodo_block_flat0 = pipeline.add_block(
         _INPUT_SHAPE=G_PeriodoShape,
         _OUTPUT_SHAPE=[-1]) #make 1D
 
+#==============================================================================
+# # Add LSL output
+# block_LSL0 = pipeline.add_block(
+#         _BLOCK=Block_LSL,
+#         _PARENT_UID=periodo_block_flat0,
+#         _parent_output_key='default',
+#         stream_name="PERIODO",
+#         stream_type='PERIODO')
+# 
+#==============================================================================
 # Slice one
 
 freqs = np.linspace(0,125,(G_nFFT//2))[1:]
@@ -116,12 +137,13 @@ pipeline.add_block(
 )
 for i in range(10)]
 
+# Add LSL outlet blocks
 lsl_outputs = [
 pipeline.add_block(
         _BLOCK=Block_LSL,
         _PARENT_UID=main[i],
         _parent_output_key='default',
-        stream_name="Main" + str(i),
+        stream_name="Main0" + str(i),
         stream_type='PROC')
 for i in range(10)
 ] + [
@@ -129,7 +151,7 @@ pipeline.add_block(
         _BLOCK=Block_LSL,
         _PARENT_UID=energy[i],
         _parent_output_key='default',
-        stream_name="Energy" + str(i),
+        stream_name="Energy0" + str(i),
         stream_type='PROC')
 for i in range(10)
 ]

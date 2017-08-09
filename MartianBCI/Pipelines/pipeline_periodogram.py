@@ -56,7 +56,9 @@ periodo_block0 = pipeline.add_block(
         _NCHAN=G_NCHAN,
         _BUFLEN=G_SIGLEN,
         nfft=G_nFFT,
-        window=G_Window)
+        window=G_Window,
+        remove_dc=True,
+        remove_mirror=True)
 
 # Flatten spectrogram
 periodo_block_flat0 = pipeline.add_block(

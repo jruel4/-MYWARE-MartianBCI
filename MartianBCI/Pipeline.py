@@ -174,7 +174,7 @@ class Pipeline:
         return self.mBlocks[_BLOCK_UID]['func']
 
     def select_source(self):
-        streams = resolve_stream()
+        streams = resolve_stream('type','EEG')
         for i,s in enumerate(streams):
             print(i,s.name(),s.uid())
         stream_id = input("Input desired stream id: ")

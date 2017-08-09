@@ -87,5 +87,5 @@ block_LSL0 = pipeline.add_block(
 pipeline.run()
 
 # Record baseline: 
-#H_blinefunc = pipeline.get_block_handle(morlet_baseline0)
-#H_blinefunc.record_baseline(duration=30)
+H_blinefunc = pipeline.get_block_handle(morlet_baseline0)
+H_blinefunc.record_baseline(duration=5)

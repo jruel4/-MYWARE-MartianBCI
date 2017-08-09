@@ -74,9 +74,11 @@ class block_normalize_periodogram (Block):
         
         assert inbuf.shape == avg.shape
         
-        decibel_power = 10 * np.log10(inbuf / avg)
-        
-        return {'default':decibel_power}
+        divisive = inbuf / avg
+#        decibel_power = 10 * np.log10(inbuf / avg)
+
+        return {'default':divisive}
+#        return {'default':decibel_power}
       
     def get_output_struct(self):
         return {'default' : (self.NUM_CHAN,self.num_freqs)}

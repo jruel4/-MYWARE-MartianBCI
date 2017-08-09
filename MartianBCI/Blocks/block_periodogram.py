@@ -56,7 +56,7 @@ class block_periodogram (Block):
         
         # window and fft
         self.mBufWindowed = self.mBuf * self.mWindow
-        fft = np.abs(np.fft.fft(self.mBuf, n=self.mnFFT))
+        fft = np.abs(np.fft.fft(self.mBuf, n=self.mnFFT, norm="ortho"))
         
         if self.mRemoveMirror:
             fft = fft[:,:(fft.shape[1])/2]
@@ -99,24 +99,26 @@ if __name__ == '__main__':
     # Initial test run
     fft = b.run({'default':fake_data[:,:]},test=True)
     assert fft['default'].shape == (nchan, nfft)
-    pg.plot(np.linspace(0,250,nfft),fft['default'][0,:])
-
-    # TEST1: Now remove DC
-    b.mRemoveDC = True
-    fft = b.run({'default':fake_data[:,:]},test=True)
-    assert fft['default'].shape == (nchan, nfft-1), "Remove DC shape test failed"
-    pg.plot(np.linspace(0,250,nfft)[1:], fft['default'][0,:])
+    pqz = pg.plot(np.linspace(0,250,nfft),fft['default'][0,:])
     
-    # TEST2: Now remove half FFT (but not DC)
-    b.mRemoveDC = False 
-    b.mRemoveMirror = True
-    fft = b.run({'default':fake_data[:,:]},test=True)
-    assert fft['default'].shape == (nchan, nfft/2), "Remove mirror shape test failed " + str((nchan,nfft/2)) + " != " + str(fft['default'].shape)
-    pg.plot(np.linspace(0,125,nfft/2), fft['default'][0,:])
-    
-    # TEST3: Now remove half FFT and DC
-    b.mRemoveDC = True
-    b.mRemoveMirror = True
-    fft = b.run({'default':fake_data[:,:]},test=True)
-    assert fft['default'].shape == (nchan, nfft/2 - 1), "Remove mirror shape test failed"
-    pg.plot(np.linspace(0,125,nfft/2)[1:], fft['default'][0,:])    
+#==============================================================================
+#     # TEST1: Now remove DC
+#     b.mRemoveDC = True
+#     fft = b.run({'default':fake_data[:,:]},test=True)
+#     assert fft['default'].shape == (nchan, nfft-1), "Remove DC shape test failed"
+#     pg.plot(np.linspace(0,250,nfft)[1:], fft['default'][0,:])
+#     
+#     # TEST2: Now remove half FFT (but not DC)
+#     b.mRemoveDC = False 
+#     b.mRemoveMirror = True
+#     fft = b.run({'default':fake_data[:,:]},test=True)
+#     assert fft['default'].shape == (nchan, nfft/2), "Remove mirror shape test failed " + str((nchan,nfft/2)) + " != " + str(fft['default'].shape)
+#     pg.plot(np.linspace(0,125,nfft/2), fft['default'][0,:])
+#     
+#     # TEST3: Now remove half FFT and DC
+#     b.mRemoveDC = True
+#     b.mRemoveMirror = True
+#     fft = b.run({'default':fake_data[:,:]},test=True)
+#     assert fft['default'].shape == (nchan, nfft/2 - 1), "Remove mirror shape test failed"
+#     pg.plot(np.linspace(0,125,nfft/2)[1:], fft['default'][0,:])    
+#==============================================================================
