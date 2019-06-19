@@ -1,6 +1,6 @@
 *.pyc
 *.MARZIPAN-PC
-.spyproject/workspace.ini
+.spyproject
 *.PC
 *.gitignore~
 Logs
